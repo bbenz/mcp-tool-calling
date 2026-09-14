@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: refund-demo-config
+  namespace: refund-demo
+  labels:
+    app.kubernetes.io/name: refund-demo
+data:
+  # The five containers share one network namespace, so they address each other
+  # over loopback exactly as they do on a laptop. These are the built-in
+  # defaults, restated here so the topology is readable from the manifest.
+  AUTH_MODE: "devidp"
+  DEVIDP_ISSUER: "http://localhost:8800"
+  MCP_A_PUBLIC_URL: "http://localhost:8801"
+  MCP_B_PUBLIC_URL: "http://localhost:8802"
+  UPSTREAM_API_URL: "http://localhost:8803"
+
+  # devidp binds loopback by default, which is right on a laptop and wrong for
+  # the container that has to answer the Service.
+  BIND_HOST: "0.0.0.0"
+
+  # Reset mutates the ledger. It stays off on anything with a public address;
+  # use scripts/aks-down.ps1 and redeploy to get a clean ledger.
+  WEB_ALLOW_RESET: "0"

@@ -1,0 +1,117 @@
+# Local container deployment of the whole demo.
+#
+#   cd demo
+#   docker compose -f docker/docker-compose.yml up --build -d
+#   open http://localhost:8080
+#
+# The script-based demo in scripts/ is unchanged and remains the rehearsed
+# stage path. This exists so the demo can be handed to somebody with Docker and
+# nothing else, and so the AKS deployment has a local equivalent to test first.
+#
+# Topology note: the five containers reach each other by compose service name
+# (devidp, mcp-a, mcp-b, upstream), not by localhost. The ports below are
+# published so you can curl the metadata endpoints from the host, but the
+# issuer and resource identifiers advertised inside the network are the
+# service-name URLs. An MCP client running on the host will therefore be sent
+# to http://mcp-a:8801 by the protected-resource metadata and will not resolve
+# it. For the live-client segment, use the script-based demo.
+
+x-common: &common
+  image: refund-demo:local
+  build:
+    context: ..
+    dockerfile: docker/Dockerfile
+  init: true
+  restart: unless-stopped
+  environment: &env
+    AUTH_MODE: devidp
+    BIND_HOST: 0.0.0.0
+    DEVIDP_ISSUER: http://devidp:8800
+    MCP_A_PUBLIC_URL: http://mcp-a:8801
+    MCP_B_PUBLIC_URL: http://mcp-b:8802
+    UPSTREAM_API_URL: http://upstream:8803
+  volumes:
+    # Shared so every container sees one ledger, one audit log, one signing key.
+    # The ledger is SQLite, which is also why nothing here scales past one
+    # replica: that is a property of the demo, not a thing to fix in YAML.
+    - demo-state:/app/.local
+
+services:
+  devidp:
+    <<: *common
+    container_name: refund-devidp
+    command: ["python", "-m", "refund_demo.devidp.server"]
+    ports: ["8800:8800"]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8800/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+
+  upstream:
+    <<: *common
+    container_name: refund-upstream
+    command: ["python", "-m", "refund_demo.upstream_api.app"]
+    ports: ["8803:8803"]
+    depends_on:
+      devidp: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8803/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+
+  mcp-a:
+    <<: *common
+    container_name: refund-mcp-a
+    command: ["python", "-m", "refund_demo.mcp_server.app"]
+    ports: ["8801:8801"]
+    depends_on:
+      devidp: {condition: service_healthy}
+      upstream: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8801/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+
+  mcp-b:
+    <<: *common
+    container_name: refund-mcp-b
+    command: ["python", "-m", "refund_demo.resource_b.app"]
+    ports: ["8802:8802"]
+    depends_on:
+      devidp: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8802/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+
+  web:
+    <<: *common
+    container_name: refund-web
+    command: ["python", "-m", "refund_demo.web.app"]
+    ports: ["8080:8080"]
+    environment:
+      <<: *env
+      # Reset stays off over HTTP. Set to 1 only on a laptop you own.
+      WEB_ALLOW_RESET: "0"
+    depends_on:
+      devidp: {condition: service_healthy}
+      upstream: {condition: service_healthy}
+      mcp-a: {condition: service_healthy}
+      mcp-b: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+
+volumes:
+  demo-state:

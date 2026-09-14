@@ -2,6 +2,8 @@
 
 Operator setup for the **"Who Can Call This MCP Tool?"** demo. Local-only setup takes about ten minutes and is all you need to run every scenario in the talk. The Entra and Azure sections are optional and were not deployed — read [§7](#7-optional-microsoft-entra-id-mode) before attempting them.
 
+This page covers the local setup. For the containerised and cloud options — Docker Compose and Azure Kubernetes Service — and for the optional web interface, see **[DEPLOYMENT.md](DEPLOYMENT.md)**. None of them are needed for the talk.
+
 ---
 
 ## 1. Prerequisites
@@ -11,9 +13,18 @@ Operator setup for the **"Who Can Call This MCP Tool?"** demo. Local-only setup 
 | **Python 3.12.10** | Install with `winget install Python.Python.3.12` (Windows) or from python.org. **Verify it is real**: `python --version` must print a version. If it opens the Microsoft Store, the Store alias stub is shadowing it — see below. |
 | Git | Only for cloning and for the commit history. |
 | ~200 MB disk | Virtual environment and dependencies. |
-| Free TCP ports | `8800`, `8801`, `8802`, `8803` on localhost. |
+| Free TCP ports | `8800`, `8801`, `8802`, `8803` on localhost — plus `8080` if you use the web interface. |
 
 No Azure subscription, no Entra tenant, and no network access are required for the local demo.
+
+Only for the optional deployment modes in [DEPLOYMENT.md](DEPLOYMENT.md):
+
+| Requirement | Needed for |
+| --- | --- |
+| Docker Desktop (Compose v2+) | Mode 3, local containers |
+| `az` 2.88+ and `kubectl` 1.30+ | Mode 4, Azure Kubernetes Service |
+
+Mode 4 does **not** need Docker: the image is built server-side by ACR Tasks.
 
 ### If `python` opens the Microsoft Store
 
@@ -132,6 +143,17 @@ It also **keeps the local signing key**, which is why it is safe to run between 
 
 If you genuinely want a fresh key, stop the services first and pass `-NewKey` (`--new-key` in bash). Rotating the key is **refused while `devidp` is listening**, so the footgun is not reachable by accident.
 
+### Optional: the web view
+
+A browser view over the same scenarios, for a room where the back row cannot read a terminal. Start the four services first, then:
+
+| Task | PowerShell | Bash |
+| --- | --- | --- |
+| Serve the UI on `:8080` | `.\scripts\web.ps1` | `./scripts/web.sh` |
+| On another port | `.\scripts\web.ps1 -Port 9000` | `./scripts/web.sh --port 9000` |
+
+It is a **reporting surface, not a decision point** — every allow and deny it shows was decided by the MCP server, and the page holds no policy of its own. Reset is disabled over HTTP by default, runs are serialized so two clicks cannot interleave against one ledger, and no token or PKCE verifier ever reaches the page. Details and the optional access key: [DEPLOYMENT.md §2](DEPLOYMENT.md#2-scripts-plus-the-web-ui).
+
 ---
 
 ## 6. Presenter client configuration (Copilot / VS Code)
@@ -185,7 +207,36 @@ The public client gets **no secret**. The confidential middle-tier uses a certif
 
 ---
 
-## 8. Optional: Azure deployment
+## 8. Optional: containers and Azure
+
+Three deployment options beyond the operator scripts. **None of them are needed for the 25-minute talk**, and none of them change the script-based demo. Full instructions: **[DEPLOYMENT.md](DEPLOYMENT.md)**.
+
+### Docker Compose — five containers locally
+
+| Task | PowerShell | Bash |
+| --- | --- | --- |
+| Build and start | `.\scripts\compose-up.ps1` | `./scripts/compose-up.sh` |
+| Stop | `.\scripts\compose-down.ps1` | `./scripts/compose-down.sh` |
+| Stop and wipe state | `.\scripts\compose-down.ps1 -Volumes` | `./scripts/compose-down.sh --volumes` |
+
+Both wrappers wait for all five containers to report healthy before printing the URL. Note that inside the Compose network the services advertise each other by service name, so a host MCP client will not resolve them — use the script path for the live-client segment.
+
+> **The image has never been built here.** The machine this demo was built on cannot reach `files.pythonhosted.org`, so the `pip install` layer could not run. Everything around it was verified. See [DEPLOYMENT.md §5](DEPLOYMENT.md#5-when-the-image-build-cannot-reach-pypi) — it is a network condition, not a broken Dockerfile, and it has three workarounds.
+
+### Azure Kubernetes Service — one pod, five containers
+
+> **Never deployed.** Manifests are schema-checked and pinned by 41 tests; no cluster was created, because no subscription was authorized.
+
+| Task | PowerShell | Bash |
+| --- | --- | --- |
+| Deploy | `.\scripts\aks-up.ps1` | `./scripts/aks-up.sh` |
+| **Tear down** | `.\scripts\aks-down.ps1` | `./scripts/aks-down.sh` |
+
+Creates a resource group, an ACR, and a small AKS cluster; builds the image with `az acr build` (server-side, so a blocked local PyPI does not matter); applies `demo/k8s/`; prints a public URL with a generated access key. Only the web container is exposed — `devidp` mints tokens for anyone who asks and must never get a public address.
+
+**Tear it down the same day.** A demo cluster left running over a conference weekend is a real bill.
+
+### Bicep — App Service / Container Apps
 
 > **Never deployed.** `demo/infra/main.bicep` compiles cleanly with `az bicep build`, and that is the only claim made for it.
 
@@ -196,7 +247,7 @@ cd demo\infra
 .\teardown.ps1                # scoped to the demo resource group only
 ```
 
-See `demo/infra/README.md` for parameters, outputs, cost considerations, and teardown scope. Nothing in the 25-minute talk requires this.
+See `demo/infra/README.md` for parameters, outputs, cost considerations, and teardown scope.
 
 ---
 
@@ -215,3 +266,12 @@ See `demo/infra/README.md` for parameters, outputs, cost considerations, and tea
 | Ledger digest differs from a prior run | Scenarios ran without a reset | `.\scripts\start-all.ps1 -Reset` |
 | `assess_refund` output is prefixed `[OFFLINE ASSESSMENT ...]` | No `FOUNDRY_ENDPOINT` configured | Expected offline. Set the endpoint for live inference. |
 | Tests skip with "services not running" | Services are down | Start them; `conftest.py` skips e2e tests rather than failing them |
+| `docker compose build` fails with `SSLV3_ALERT_HANDSHAKE_FAILURE` on `files.pythonhosted.org` | The network allows `pypi.org` but blocks the wheel CDN | Not a Dockerfile problem. Deploy to AKS instead (`az acr build` runs server-side), point the build at an internal mirror with `--build-arg PIP_INDEX_URL=...`, or use the script path. [DEPLOYMENT.md §5](DEPLOYMENT.md#5-when-the-image-build-cannot-reach-pypi) |
+| `compose-up` times out waiting for healthy containers | A service failed to start inside its container | `docker compose -f docker/docker-compose.yml logs <service>` |
+| Web UI loads but every call is `invalid_token` under Compose | Issuer and resource URLs disagree with the network addresses | All five containers must share one `DEVIDP_ISSUER` and one set of `MCP_*_PUBLIC_URL`. They are set together in `docker/docker-compose.yml`; changing one alone breaks audience validation |
+| A host MCP client cannot reach the server under Compose | Metadata advertises `http://mcp-a:8801`, which only resolves inside the Compose network | Expected. Use the script-based demo for the live-client segment |
+| Web UI returns `401 access key required` | `WEB_ACCESS_KEY` is set | Append `?k=<key>` to the URL, or send `X-Demo-Key`. `/health` is deliberately exempt so probes keep working |
+| Reset button does nothing / `403` | Reset is off over HTTP by default | Correct behaviour. Use `.\scripts\reset.ps1`, or set `WEB_ALLOW_RESET=1` locally — never on a public address |
+| `aks-up` fails at `az acr build` | Not signed in, or no subscription selected | `az login`, then `az account set --subscription <id>` |
+| AKS pod is `CrashLoopBackOff` | Most often a container cannot write its state directory | `kubectl -n refund-demo logs <pod> -c <container>`. The pod sets `fsGroup: 10001`, which is what makes the `emptyDir` writable by the non-root user |
+| AKS Service has no external IP | Load balancer still provisioning | `kubectl -n refund-demo get svc refund-demo-web -w`. Give it a few minutes |

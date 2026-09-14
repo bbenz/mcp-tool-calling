@@ -1,0 +1,158 @@
+# Five containers, one pod.
+#
+# This looks unusual, and it is deliberate. The ledger is SQLite on a shared
+# volume, so the deployment cannot scale past one writer no matter how it is
+# arranged. Given that, one pod is the honest shape: the containers share a
+# network namespace and reach each other on loopback, which means the default
+# configuration that runs on a laptop runs here unchanged, and there is no
+# ReadWriteMany storage class and no SQLite-over-SMB locking to go wrong.
+#
+# It is a demo, not a reference architecture for production MCP hosting. The
+# talk makes that point out loud; the manifest should not contradict it.
+#
+# IMAGE_PLACEHOLDER is substituted by scripts/aks-up.ps1 / aks-up.sh. To apply
+# by hand, replace it with your own <registry>/refund-demo:<tag> first.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: refund-demo
+  namespace: refund-demo
+  labels:
+    app.kubernetes.io/name: refund-demo
+spec:
+  replicas: 1
+  strategy:
+    # Rolling would briefly run two pods against one ledger volume.
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: refund-demo
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: refund-demo
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        # Makes the emptyDir below writable by the non-root user.
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+        - name: state
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+      containers:
+        # --- issuer -------------------------------------------------------
+        # Stands in for Entra ID: real RS256 over a real published JWKS, real
+        # PKCE, real resource indicators. Never runs in a production topology.
+        - name: devidp
+          image: IMAGE_PLACEHOLDER
+          command: ["python", "-m", "refund_demo.devidp.server"]
+          envFrom: [{configMapRef: {name: refund-demo-config}}]
+          ports: [{containerPort: 8800, name: devidp}]
+          volumeMounts: &mounts
+            - {name: state, mountPath: /app/.local}
+            - {name: tmp, mountPath: /tmp}
+          securityContext: &hardening
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          resources: &resources
+            requests: {cpu: "50m", memory: "128Mi"}
+            limits: {cpu: "500m", memory: "512Mi"}
+          readinessProbe:
+            httpGet: {path: /health, port: 8800}
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet: {path: /health, port: 8800}
+            periodSeconds: 20
+            failureThreshold: 6
+
+        # --- the API the MCP server calls on the user's behalf ------------
+        - name: upstream
+          image: IMAGE_PLACEHOLDER
+          command: ["python", "-m", "refund_demo.upstream_api.app"]
+          envFrom: [{configMapRef: {name: refund-demo-config}}]
+          ports: [{containerPort: 8803, name: upstream}]
+          volumeMounts: *mounts
+          securityContext: *hardening
+          resources: *resources
+          readinessProbe:
+            httpGet: {path: /health, port: 8803}
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet: {path: /health, port: 8803}
+            periodSeconds: 20
+            failureThreshold: 6
+
+        # --- MCP server A: the one the talk is about ----------------------
+        - name: mcp-a
+          image: IMAGE_PLACEHOLDER
+          command: ["python", "-m", "refund_demo.mcp_server.app"]
+          envFrom: [{configMapRef: {name: refund-demo-config}}]
+          ports: [{containerPort: 8801, name: mcp-a}]
+          volumeMounts: *mounts
+          securityContext: *hardening
+          resources: *resources
+          readinessProbe:
+            httpGet: {path: /health, port: 8801}
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet: {path: /health, port: 8801}
+            periodSeconds: 20
+            failureThreshold: 6
+
+        # --- MCP server B: exists so a token for A can be replayed at B ----
+        - name: mcp-b
+          image: IMAGE_PLACEHOLDER
+          command: ["python", "-m", "refund_demo.resource_b.app"]
+          envFrom: [{configMapRef: {name: refund-demo-config}}]
+          ports: [{containerPort: 8802, name: mcp-b}]
+          volumeMounts: *mounts
+          securityContext: *hardening
+          resources: *resources
+          readinessProbe:
+            httpGet: {path: /health, port: 8802}
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet: {path: /health, port: 8802}
+            periodSeconds: 20
+            failureThreshold: 6
+
+        # --- the only container the Service exposes -----------------------
+        - name: web
+          image: IMAGE_PLACEHOLDER
+          command: ["python", "-m", "refund_demo.web.app"]
+          envFrom: [{configMapRef: {name: refund-demo-config}}]
+          env:
+            # Written by aks-up; absent means the UI is open to anyone who
+            # finds the address, which is why the deploy script generates one.
+            - name: WEB_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: refund-demo-secret
+                  key: web-access-key
+                  optional: true
+          ports: [{containerPort: 8080, name: web}]
+          volumeMounts: *mounts
+          securityContext: *hardening
+          resources: *resources
+          readinessProbe:
+            # /health stays outside the access-key gate on purpose, so probes
+            # keep working when a key is set.
+            httpGet: {path: /health, port: 8080}
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet: {path: /health, port: 8080}
+            periodSeconds: 20
+            failureThreshold: 6

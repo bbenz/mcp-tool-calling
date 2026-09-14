@@ -1,0 +1,32 @@
+# Keep the build context small and keep local state out of the image.
+# .local holds the ledger, the audit log, and the signing key: none of it
+# belongs in a container image, and baking a signing key into a layer would be
+# exactly the kind of credential handling this demo argues against.
+.local/
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+*.pem
+*.pfx
+*.key
+
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+build/
+dist/
+
+.git/
+.gitignore
+docs/
+infra/
+identity/
+scripts/
+tests/
+k8s/
+docker/

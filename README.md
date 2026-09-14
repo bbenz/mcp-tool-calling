@@ -13,7 +13,7 @@ Everything here runs locally in about ten minutes, with no Azure subscription an
 cd demo
 .\scripts\bootstrap.ps1
 .\scripts\start-all.ps1 -Reset
-.\scripts\check.ps1          # 84 tests + 14 scenarios -> READY
+.\scripts\check.ps1          # 136 tests + 14 scenarios -> READY
 ```
 
 **Bash** (Git Bash on Windows, Linux, macOS, WSL):
@@ -23,10 +23,18 @@ cd demo
 chmod +x scripts/*.sh        # only if your clone lost the executable bit
 ./scripts/bootstrap.sh
 ./scripts/start-all.sh --reset
-./scripts/check.sh           # 84 tests + 14 scenarios -> READY
+./scripts/check.sh           # 136 tests + 14 scenarios -> READY
 ```
 
 Every command must be run from the `demo/` directory. A `.ps1` cannot be run by bash and a `.sh` cannot be run by PowerShell — use the twin for the shell you are in. WSL needs its own `bootstrap.sh`, because a Windows `.venv` will not load on Linux; see [SETUP.md](docs/SETUP.md#choosing-a-shell-and-a-note-on-wsl).
+
+**Optionally**, there is a browser view, a Docker Compose deployment, and an AKS deployment. None of them are needed for the talk and none of them change the commands above — see **[DEPLOYMENT.md](docs/DEPLOYMENT.md)**.
+
+```powershell
+.\scripts\web.ps1            # browser view over the running services
+.\scripts\compose-up.ps1     # the whole demo in five containers
+.\scripts\aks-up.ps1         # ...and on Azure Kubernetes Service
+```
 
 ---
 
@@ -120,9 +128,11 @@ Every scenario prints the ledger digest **before and after**, so "nothing happen
 | **[SETUP.md](docs/SETUP.md)** | Prerequisites, bootstrap, configuration, troubleshooting |
 | **[CONTROL-MAP.md](docs/CONTROL-MAP.md)** | The one-page attendee takeaway |
 | **[COVERAGE-MATRIX.md](docs/COVERAGE-MATRIX.md)** | Every promise → implementation → test → evidence |
+| [DEPLOYMENT.md](docs/DEPLOYMENT.md) | Four ways to run it: scripts, web UI, Docker Compose, AKS |
+| [EVENTS.md](docs/EVENTS.md) | Where this demo has been delivered, and how to reuse it |
 | [RUNBOOK.md](docs/RUNBOOK.md) | Presenter: timed schedule, tiers, stop-times, recovery |
 | [ONSTAGE-SCRIPT.md](docs/ONSTAGE-SCRIPT.md) | Presenter: literal prompts and narration |
-| [RISKS-AND-FALLBACKS.md](docs/RISKS-AND-FALLBACKS.md) | 16 failure modes, detection, prepared fallback |
+| [RISKS-AND-FALLBACKS.md](docs/RISKS-AND-FALLBACKS.md) | 19 failure modes, detection, prepared fallback |
 | [COMPATIBILITY-RECORD.md](docs/COMPATIBILITY-RECORD.md) | Verified versions, SDK API facts, defects found |
 | [CLIENT-APPROVAL-CHECKLIST.md](docs/CLIENT-APPROVAL-CHECKLIST.md) | Manual checks no test can prove |
 | [APPENDIX.md](docs/APPENDIX.md) | Sequence diagrams, sanitized audit records, KQL, design trade-offs, sources |
@@ -143,10 +153,13 @@ demo/
     resource_b/          # Resource B  :8802 -- exists to be rejected
     upstream_api/        # refund API  :8803 -- re-enforces everything
     devidp/              # local OAuth AS :8800 -- real RS256/PKCE/RFC 8707
+    web/                 # browser view :8080 -- reports decisions, makes none
     client.py            # OAuth client + protocol trace
     scenarios.py         # 14 named stage scenarios
-  tests/                 # 84 tests
+  tests/                 # 136 tests
   scripts/               # PowerShell + bash operator commands
+  docker/                # Dockerfile + Compose -- five containers, one image
+  k8s/                   # AKS manifests -- one pod, five containers
   infra/                 # Bicep -- compiles; never deployed
   identity/              # Entra registration scripts -- never executed
 docs/
@@ -162,6 +175,8 @@ Stated here because a talk about authorization should not overclaim.
 - **The audit log is a JSONL file.** Structured and pseudonymized — but not immutable and not tamper-proof.
 - **`AUTH_MODE=entra` has never been executed.** No tenant was authorized for this build. The default and the rehearsed path is the local authorization server, which is a real OAuth server validated by the same code.
 - **`demo/infra` has never been deployed.** The Bicep compiles; that is the entire claim.
+- **The container image has never been built.** The build machine cannot reach `files.pythonhosted.org`, so the `pip install` layer never ran. The image *layout* was verified — source location, excluded files, non-root write access — and the Compose and Kubernetes files are pinned by 41 tests, but the dependency install itself is unproven. [DEPLOYMENT.md §5](docs/DEPLOYMENT.md#5-when-the-image-build-cannot-reach-pypi).
+- **The AKS deployment has never been run.** No subscription was authorized. Schema-shaped and test-pinned is not the same as a green rollout.
 - **The client approval UI is verified by hand only.** No automated test can prove a dialog appeared.
 - **A cancelled request is client-only evidence.** The server never saw it, so it cannot show you a record of refusing it.
 
@@ -171,4 +186,8 @@ Full list: [COVERAGE-MATRIX.md](docs/COVERAGE-MATRIX.md#not-proven--say-so-if-as
 
 ## Security notes
 
-`devidp` issues tokens to anyone who asks. **It must never run anywhere but localhost.** All fixtures are synthetic; there is no real customer data. No secret, token, authorization code, or PKCE verifier is ever logged, printed, or committed — `.env` files, keys, and certificates are git-ignored.
+`devidp` issues tokens to anyone who asks. **It must never run anywhere but localhost.** In the container and Kubernetes deployments it stays inside the Compose network and inside the pod respectively — the Kubernetes Service exposes port 8080 and nothing else, deliberately.
+
+All fixtures are synthetic; there is no real customer data. No secret, token, authorization code, or PKCE verifier is ever logged, printed, or committed — `.env` files, keys, and certificates are git-ignored, and `.dockerignore` keeps `.local/` out of every image layer so a signing key cannot be baked into one.
+
+The web interface reports decisions and makes none. Its reset endpoint is disabled over HTTP by default and refused outright in `entra` mode, and the AKS deployment generates a per-deployment access key because the load balancer address is public.

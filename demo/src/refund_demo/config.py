@@ -61,6 +61,19 @@ class Settings(BaseSettings):
     upstream_api_scope: str = "api://refund-upstream/Ledger.Refund"
     upstream_api_port: int = 8803
 
+    web_port: int = 8080
+    # Empty means "use each service's own default". devidp binds loopback only,
+    # everything else binds all interfaces. Containers set BIND_HOST=0.0.0.0,
+    # because a loopback bind is unreachable from outside the container.
+    bind_host: str = ""
+    # Reset is an operator action. It is off by default over HTTP, and stays off
+    # in the cloud deployment: a "put the ledger back" endpoint reachable from
+    # the internet is precisely the escalation this talk argues against.
+    web_allow_reset: bool = False
+    # Optional shared secret for the web UI. Empty means no gate, which is fine
+    # on a laptop and is NOT fine on a public IP.
+    web_access_key: str = ""
+
     scope_read: str = "Refunds.Read"
     scope_write: str = "Refunds.Write"
 
@@ -121,6 +134,10 @@ class Settings(BaseSettings):
 
     def ensure_local_dir(self) -> None:
         os.makedirs(_local_path(), exist_ok=True)
+
+    def bind(self, default: str) -> str:
+        """Interface to bind, honouring a BIND_HOST override."""
+        return self.bind_host or default
 
 
 @lru_cache(maxsize=1)

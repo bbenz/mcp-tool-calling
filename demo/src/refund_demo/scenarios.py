@@ -33,6 +33,27 @@ DIM = "\033[2m"
 RESET = "\033[0m"
 
 
+# The single source of truth for what each scenario asserts. The scenario
+# functions read from here, so the listing shown by `scenarios list` and by
+# the web UI can never drift from the claim a run actually reports.
+CLAIMS: dict[str, str] = {
+    'discovery': '401 challenge -> PRM -> AS metadata -> PKCE S256 + resource indicator -> audience-bound token',
+    'allowed-refund': 'An authorized refund succeeds exactly once; a retry with the same idempotency key does not double-spend',
+    'scope-denial': 'A token without the write scope cannot call the consequential tool, even on an order the user owns',
+    'ownership-denial': 'Holding the write scope is not permission over every object: ORD-1003 belongs to another user',
+    'business-rule-denial': 'Authorization is not only identity: an ineligible order is refused on the server',
+    'over-limit-denial': "Per-call value limits are enforced by the server, not by the client's confirmation dialog",
+    'wrong-audience': 'A genuine, unexpired, correctly signed token minted for Resource B is rejected at Resource A',
+    'unapproved-client': 'The server records and checks which client application is acting for the user',
+    'prompt-injection': 'Instructions embedded in untrusted order notes cannot widen authorization',
+    'annotation-tampering': 'Rewriting tool annotations client-side changes no server decision; the same denial is returned',
+    'pkce-downgrade': "The authorization server refuses a PKCE downgrade to 'plain'",
+    'missing-resource-indicator': 'Without an RFC 8707 resource indicator the authorization server will not mint a token',
+    'no-token': 'An unauthenticated call is refused and is told where to authenticate',
+    'token-passthrough-blocked': "Forwarding the MCP server's own token to the upstream API fails: the upstream has a different audience",
+}
+
+
 @dataclass
 class ScenarioResult:
     name: str
@@ -109,7 +130,7 @@ async def scenario_discovery() -> ScenarioResult:
     )
     return ScenarioResult(
         name="discovery",
-        claim="401 challenge -> PRM -> AS metadata -> PKCE S256 + resource indicator -> audience-bound token",
+        claim=CLAIMS['discovery'],
         passed=passed,
         detail=f"token issued for aud={claims.get('aud')} with scp={claims.get('scp')!r}; {len(tools)} tools listed",
         ledger_before=before,
@@ -145,7 +166,7 @@ async def scenario_allowed_refund() -> ScenarioResult:
     )
     return ScenarioResult(
         name="allowed-refund",
-        claim="An authorized refund succeeds exactly once; a retry with the same idempotency key does not double-spend",
+        claim=CLAIMS['allowed-refund'],
         passed=bool(applied_once and first.get("delegated_identity_preserved")),
         detail=(
             f"first call applied refund {first.get('refund_id')}; "
@@ -174,7 +195,7 @@ async def scenario_scope_denial() -> ScenarioResult:
     text = result.get("text", "")
     return ScenarioResult(
         name="scope-denial",
-        claim="A token without the write scope cannot call the consequential tool, even on an order the user owns",
+        claim=CLAIMS['scope-denial'],
         passed=result["is_error"] and "MISSING_SCOPE" in text and before["digest"] == after["digest"],
         detail=text.strip()[:200] or "no error text",
         ledger_before=before,
@@ -197,7 +218,7 @@ async def scenario_ownership_denial() -> ScenarioResult:
     text = result.get("text", "")
     return ScenarioResult(
         name="ownership-denial",
-        claim="Holding the write scope is not permission over every object: ORD-1003 belongs to another user",
+        claim=CLAIMS['ownership-denial'],
         passed=result["is_error"] and "NOT_ASSIGNED" in text and before["digest"] == after["digest"],
         detail=text.strip()[:200] or "no error text",
         ledger_before=before,
@@ -219,7 +240,7 @@ async def scenario_business_rule_denial() -> ScenarioResult:
     text = result.get("text", "")
     return ScenarioResult(
         name="business-rule-denial",
-        claim="Authorization is not only identity: an ineligible order is refused on the server",
+        claim=CLAIMS['business-rule-denial'],
         passed=result["is_error"] and "NOT_REFUNDABLE" in text and before["digest"] == after["digest"],
         detail=text.strip()[:200] or "no error text",
         ledger_before=before,
@@ -240,7 +261,7 @@ async def scenario_over_limit_denial() -> ScenarioResult:
     text = result.get("text", "")
     return ScenarioResult(
         name="over-limit-denial",
-        claim="Per-call value limits are enforced by the server, not by the client's confirmation dialog",
+        claim=CLAIMS['over-limit-denial'],
         passed=result["is_error"] and "LIMIT" in text and before["digest"] == after["digest"],
         detail=text.strip()[:200] or "no error text",
         ledger_before=before,
@@ -268,7 +289,7 @@ async def scenario_wrong_audience() -> ScenarioResult:
     after = ledger.ledger_fingerprint()
     return ScenarioResult(
         name="wrong-audience",
-        claim="A genuine, unexpired, correctly signed token minted for Resource B is rejected at Resource A",
+        claim=CLAIMS['wrong-audience'],
         passed=response.status_code == 401 and before["digest"] == after["digest"],
         detail=f"Resource A answered HTTP {response.status_code}",
         ledger_before=before,
@@ -296,7 +317,7 @@ async def scenario_unapproved_client() -> ScenarioResult:
     text = result.get("text", "")
     return ScenarioResult(
         name="unapproved-client",
-        claim="The server records and checks which client application is acting for the user",
+        claim=CLAIMS['unapproved-client'],
         passed=result["is_error"] and "CLIENT" in text and before["digest"] == after["digest"],
         detail=text.strip()[:200] or "no error text",
         ledger_before=before,
@@ -326,7 +347,7 @@ async def scenario_prompt_injection() -> ScenarioResult:
     text = obeyed.get("text", "")
     return ScenarioResult(
         name="prompt-injection",
-        claim="Instructions embedded in untrusted order notes cannot widen authorization",
+        claim=CLAIMS['prompt-injection'],
         passed=obeyed["is_error"] and "NOT_ASSIGNED" in text and before["digest"] == after["digest"],
         detail=f"instruction obeyed verbatim, server still denied: {text.strip()[:150]}",
         ledger_before=before,
@@ -364,7 +385,7 @@ async def scenario_annotation_tampering() -> ScenarioResult:
     text = result.get("text", "")
     return ScenarioResult(
         name="annotation-tampering",
-        claim="Rewriting tool annotations client-side changes no server decision; the same denial is returned",
+        claim=CLAIMS['annotation-tampering'],
         passed=result["is_error"] and "MISSING_SCOPE" in text and before["digest"] == after["digest"],
         detail=text.strip()[:200] or "no error text",
         ledger_before=before,
@@ -390,7 +411,7 @@ async def scenario_pkce_downgrade() -> ScenarioResult:
     after = ledger.ledger_fingerprint()
     return ScenarioResult(
         name="pkce-downgrade",
-        claim="The authorization server refuses a PKCE downgrade to 'plain'",
+        claim=CLAIMS['pkce-downgrade'],
         passed=passed,
         detail=detail[:200],
         ledger_before=before,
@@ -415,7 +436,7 @@ async def scenario_missing_resource_indicator() -> ScenarioResult:
     body = response.json() if response.status_code >= 400 else {}
     return ScenarioResult(
         name="missing-resource-indicator",
-        claim="Without an RFC 8707 resource indicator the authorization server will not mint a token",
+        claim=CLAIMS['missing-resource-indicator'],
         passed=response.status_code == 400 and body.get("error") == "invalid_target",
         detail=f"HTTP {response.status_code}: {body.get('error')} - {body.get('error_description')}",
         ledger_before=before,
@@ -436,7 +457,7 @@ async def scenario_no_token() -> ScenarioResult:
     challenge = response.headers.get("www-authenticate", "")
     return ScenarioResult(
         name="no-token",
-        claim="An unauthenticated call is refused and is told where to authenticate",
+        claim=CLAIMS['no-token'],
         passed=response.status_code == 401 and "resource_metadata=" in challenge,
         detail=f"HTTP {response.status_code}",
         ledger_before=before,
@@ -461,7 +482,7 @@ async def scenario_token_passthrough_blocked() -> ScenarioResult:
     body = response.json() if response.content else {}
     return ScenarioResult(
         name="token-passthrough-blocked",
-        claim="Forwarding the MCP server's own token to the upstream API fails: the upstream has a different audience",
+        claim=CLAIMS['token-passthrough-blocked'],
         passed=response.status_code == 401 and before["digest"] == after["digest"],
         detail=f"upstream answered HTTP {response.status_code}: {body.get('reason_code')}",
         ledger_before=before,
@@ -516,9 +537,8 @@ def main(argv: list[str] | None = None) -> int:
     command = argv[0] if argv else "run-all"
 
     if command == "list":
-        for name, fn in SCENARIOS.items():
-            doc = (fn.__doc__ or "").strip().splitlines()[0] if fn.__doc__ else ""
-            print(f"  {name:<28} {doc}")
+        for name in SCENARIOS:
+            print(f"  {name:<28} {CLAIMS.get(name, '')}")
         return 0
 
     if command == "run":

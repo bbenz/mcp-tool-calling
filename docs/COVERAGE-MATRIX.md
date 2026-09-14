@@ -6,7 +6,7 @@ Every promise in the published session description, mapped to the code that impl
 
 **Tiers:** **A** = always live · **B** = live if on time, else prepared evidence · **C** = compress first.
 
-Run everything: `.\scripts\check.ps1` (or `./scripts/check.sh`) → 84 automated tests + 14 scenarios.
+Run everything: `.\scripts\check.ps1` (or `./scripts/check.sh`) → 136 automated tests + 14 scenarios.
 
 ---
 
@@ -100,7 +100,28 @@ Run everything: `.\scripts\check.ps1` (or `./scripts/check.sh`) → 84 automated
 | 7.2 | Reset refuses to run against a real directory | `guard()` refuses when `AUTH_MODE=entra` unless `ALLOW_RESET=1` | `test_reset.py::test_reset_refuses_in_entra_mode_without_an_explicit_override` | Pre-show | `reset refused: ... AUTH_MODE=entra`, exit 2 | Operator |
 | 7.3 | Reset cannot delete outside the demo data directory | Containment check against the audit log's directory | `test_reset.py::test_reset_only_ever_removes_files_inside_the_data_directory` | Pre-show | An out-of-scope file survives | Operator |
 | 7.4 | Reset is safe to run between segments with services up | The signing key is preserved; rotation refused while `devidp` listens | `test_reset.py::test_reset_preserves_the_signing_key`, `::test_rotating_the_key_is_refused_while_devidp_is_running` | T-5 and between segments | Ledger returns to `211597d92491`; tokens keep validating | Operator |
-| 7.5 | Every operator command works in both shells | `.ps1` + `.sh` twin for all 8 commands; `_common.sh` resolves the venv layout | `check.ps1` and `check.sh` both print `READY` | Pre-show | Identical results from PowerShell and bash | Operator |
+| 7.5 | Every operator command works in both shells | `.ps1` + `.sh` twin for all 12 commands; `_common.sh` resolves the venv layout | `check.ps1` and `check.sh` both print `READY` | Pre-show | Identical results from PowerShell and bash | Operator |
+
+---
+
+## 8. Presentation Surface And Deployment
+
+The web UI and the container deployments were added so the demo can be reused beyond one room. They must not become a second place where authorization is decided, and the three deployment descriptions must not drift apart.
+
+| # | Requirement | Implementation | Check | Stage moment | Expected evidence | Boundary |
+| --- | --- | --- | --- | --- | --- | --- |
+| 8.1 | The web UI reports decisions and makes none | `web/app.py` calls `scenarios.run_one` and renders the result; no policy import | `test_web.py::test_run_endpoint_returns_a_real_scenario_result` | Optional | Verdicts match the terminal output exactly | Operator |
+| 8.2 | The page fetches nothing from a third party | Single self-contained HTML document, inline CSS and JS | `test_web.py::test_page_has_no_external_resources` | Optional | No CDN, no build step, no external request | Operator |
+| 8.3 | The listing cannot drift from what a run claims | Canonical `CLAIMS` dict is the single source for both | `test_web.py::test_claims_cover_every_scenario` | Pre-show | `scenario list` and the UI show identical claims | Operator |
+| 8.4 | Reset stays shut over HTTP | `WEB_ALLOW_RESET` defaults off; still refused in `entra` mode | `test_web.py::test_reset_is_refused_by_default`, `::test_reset_still_refused_in_entra_mode` | Optional | `POST /api/reset` → `403` | Operator |
+| 8.5 | No secret reaches the browser | Ledger and audit responses are filtered | `test_web.py::test_ledger_contains_no_secrets` | Optional | No token, code, or verifier in any response | Operator |
+| 8.6 | The access-key gate covers every data route but not probes | `_gate()` on all routes; `/health` exempt | `test_web.py::test_access_key_gates_every_data_route` | Optional | `401` everywhere, `200` on `/health` | Operator |
+| 8.7 | Compose, Kubernetes and the Dockerfile describe the same demo | One `TOPOLOGY` table; 41 assertions against it | `test_deploy_manifests.py` | Pre-show | Same five services, modules, ports and probes in all three | Operator |
+| 8.8 | Containers override the loopback bind | `BIND_HOST=0.0.0.0` in the image, Compose, and the ConfigMap | `test_deploy_manifests.py::test_containers_override_the_bind_host` and twins | Pre-show | `devidp` is reachable inside the network | Operator |
+| 8.9 | The state directory is shared and writable by a non-root user | One volume at `/app/.local`; `fsGroup: 10001` | `test_deploy_manifests.py::test_every_container_mounts_the_shared_state_directory`, `::test_pod_runs_as_a_non_root_user` | Pre-show | One ledger, one audit log, one key across five containers | Operator |
+| 8.10 | The development issuer never gets a public address | Service exposes `8080` only | `test_deploy_manifests.py::test_only_the_web_container_is_exposed` | Pre-show | `devidp`, `mcp-a`, `mcp-b`, `upstream` stay internal | Operator |
+| 8.11 | Containers are hardened | Non-root, read-only root filesystem, all capabilities dropped, no service-account token | `test_deploy_manifests.py::test_containers_are_hardened` | Pre-show | Every container passes | Operator |
+| 8.12 | The signing key never enters an image layer | `.dockerignore` excludes `.local/`, `.venv/`, `*.pem`, `*.key` | `test_deploy_manifests.py::test_dockerignore_keeps_local_state_out_of_the_image`, plus a structural image build | Pre-show | `.venv` and `tests` absent from the image; `.local` empty and writable | Operator |
 
 ---
 
@@ -114,3 +135,5 @@ Run everything: `.\scripts\check.ps1` (or `./scripts/check.sh`) → 84 automated
 | Client OAuth redirect URIs | **Unconfirmed** | Requires a live client; see `demo/identity/README.md`. |
 | Least-privilege Foundry RBAC role | **Assumed** | Documented in `infra/modules/foundry.bicep`; not validated against live role definitions. |
 | Client approval UI (4.3, 4.4) | **Manual only** | No automated test can prove a dialog appeared. |
+| Container image build (8.x) | **Never built** | The build machine cannot reach `files.pythonhosted.org`, so the `pip install` layer never ran. Layout, exclusions and non-root write access *were* verified with a structural build. |
+| AKS deployment | **Never deployed** | No subscription was authorized. Manifests are schema-shaped and pinned by 41 tests; no rollout was observed. |

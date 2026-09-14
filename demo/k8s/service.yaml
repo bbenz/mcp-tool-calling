@@ -1,0 +1,19 @@
+# Only the web container is exposed. devidp, mcp-a, mcp-b and upstream stay
+# inside the pod: putting a development issuer that mints its own tokens on a
+# public address would undercut the entire point of the talk.
+apiVersion: v1
+kind: Service
+metadata:
+  name: refund-demo-web
+  namespace: refund-demo
+  labels:
+    app.kubernetes.io/name: refund-demo
+spec:
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/name: refund-demo
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+      protocol: TCP

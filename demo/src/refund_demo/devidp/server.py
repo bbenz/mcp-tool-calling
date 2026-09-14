@@ -18,7 +18,10 @@ boundaries being demonstrated are real.
 
 What this is NOT: it is not a production identity provider, it does not
 authenticate anybody (the "login" page simply lets the presenter pick which
-synthetic employee to act as), and it never runs in the cloud deployment.
+synthetic employee to act as), and it must never hold real user data. The
+container and AKS deployments do run it, because they package the same
+self-contained demo -- which is exactly why those deployments are labelled
+demo-only and carry synthetic fixtures alone.
 """
 
 from __future__ import annotations
@@ -369,7 +372,7 @@ def main() -> None:
     import uvicorn
 
     settings = get_settings()
-    uvicorn.run(app, host="127.0.0.1", port=settings.devidp_port, log_level="warning")
+    uvicorn.run(app, host=settings.bind("127.0.0.1"), port=settings.devidp_port, log_level="warning")
 
 
 if __name__ == "__main__":

@@ -26,8 +26,32 @@ This is the Phase 0 gate output. Every version below was read from the machine t
 | openai | 3.8.0 | metadata (Foundry path only) |
 | azure-identity | 1.25.3 | metadata (Foundry path only) |
 | pytest | 9.1.1 | metadata |
+| PyYAML | 6.0.3 | metadata — pulled in by `uvicorn[standard]`; used by the deployment-manifest tests |
 
 Exact pins for a reproducible rebuild are in `demo/requirements.txt` (55 packages, generated with `pip freeze`).
+
+Tooling used for the optional deployment paths:
+
+| Component | Version | How it was verified |
+| --- | --- | --- |
+| Docker Engine | 29.8.0 (linux containers) | `docker version` |
+| Docker Compose | v5.5.1 | `docker compose version` |
+| Azure CLI | 2.88.0 | `az version` |
+| kubectl | v1.36.1 | `kubectl version --client` |
+
+### The package CDN is blocked on this machine
+
+`pypi.org` responds normally (HTTP 200), but `files.pythonhosted.org` — the CDN that serves the actual wheels — fails the TLS handshake:
+
+```
+curl: (35) schannel: ... SEC_E_ILLEGAL_MESSAGE
+pip: SSLError(1, '[SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ...')
+```
+
+Reproduced identically from the host and from inside a `docker build`. The practical consequences shaped two decisions:
+
+1. **No new Python dependency could be added or verified.** The web UI is built on **Starlette**, which was already a dependency of the MCP SDK, rather than on FastAPI, which would have required an install that cannot happen here. Starlette is what FastAPI is built on; for a handful of JSON routes and one HTML page the difference is an import, and the demo gains nothing from a dependency it cannot verify.
+2. **The container image was never built, and the cloud path builds server-side.** `az acr build` runs in Azure, where PyPI is reachable, which is why the AKS scripts do not push an image from the laptop. See [DEPLOYMENT.md §5](DEPLOYMENT.md#5-when-the-image-build-cannot-reach-pypi) and risk R16.
 
 ### Python was not present
 
@@ -79,6 +103,7 @@ Recorded because each one would have produced a misleading demo.
 | 8 | `devidp` never called `telemetry.configure()` | The one service missing from any trace | `configure("devidp")` in `create_app()` |
 | 9 | Reset deleted the local signing key | **Every call fails `invalid_token` after the T-5 reset.** The key regenerates, so `devidp` mints tokens with a new key while running services still serve and cache the old JWKS. Only a full restart recovers. | Reset keeps the key by default; `--new-key` is refused while `devidp` is listening. Pinned by `tests/test_reset.py` (R9b) |
 | 10 | Bash operators had no `scenario`/`audit` scripts, and every `.sh` hardcoded `.venv/bin/python` | The two most-used stage commands were PowerShell-only, and no `.sh` ran under Git Bash on Windows | Added `scenario.sh`, `audit.sh`, and `_common.sh`, which resolves `.venv/bin` or `.venv/Scripts` |
+| 11 | `scenario list` printed blank descriptions | The list of what the demo can show was unreadable — the claim lived in a `claim=` keyword argument, not in a docstring, so the listing had nothing to read | Introduced a canonical `CLAIMS` dict as the single source for both the listing and each result, pinned by a drift test |
 
 ---
 
@@ -86,11 +111,15 @@ Recorded because each one would have produced a misleading demo.
 
 ### Verified on this machine
 
-- All 84 automated tests pass (`pytest tests/ -q`).
+- All 136 automated tests pass (`pytest tests/ -q`).
 - All 14 stage scenarios pass (`python -m refund_demo.scenarios run-all`).
 - Full protocol trace: 401 challenge → PRM → AS metadata → PKCE S256 → RFC 8707 resource indicator → audience-bound token → `tools/call`.
 - On-behalf-of exchange, delegated identity preservation, and upstream re-enforcement.
 - All three adversarial checks, each with an unchanged ledger digest.
+- The web API end to end against live services: health, scenario listing, a real run, ledger digest, audit tail, and `403` on reset.
+- Image layout, via a structural container build: source at `/app/src`, `.local` resolving to `/app/.local`, `.venv` and `tests` excluded, and the non-root user able to write the state directory.
+- Compose file syntax (`docker compose config`) and cross-file agreement between Compose, Kubernetes and the Dockerfile (41 tests).
+- Both teardown scripts on a non-existent resource group, and identical registry-name derivation between PowerShell and bash.
 
 ### NOT verified — state this plainly if asked
 
@@ -98,6 +127,8 @@ Recorded because each one would have produced a misleading demo.
 | --- | --- | --- |
 | **Microsoft Entra ID mode** (`AUTH_MODE=entra`) | No tenant access was authorized | The MSAL on-behalf-of path and real Entra discovery are **untested**. `AUTH_MODE=devidp` is the presentation default. |
 | **Azure deployment** (`demo/infra`) | Provisioning was not approved; nothing was deployed | Bicep compiles (`az bicep build`) but has never been applied. Treat first deploy as a two-hour task, not a five-minute one. |
+| **Container image build** | The wheel CDN is blocked on this machine (§1) | The `pip install` layer never ran. Everything around it was verified. Build it once on a network you control before relying on it. |
+| **AKS deployment** | No subscription was authorized | Manifests are schema-shaped and pinned by 41 tests; no rollout was observed. Rehearse it days ahead, never on the day (R17). |
 | **Copilot / VS Code MCP OAuth redirect URIs** | Could not be confirmed against a live client | `demo/identity/README.md` marks these as TODO. Confirm from the client's own error message during rehearsal. |
 | **Least-privilege Foundry RBAC role** | Not confirmed against live role definitions | `demo/infra/modules/foundry.bicep` documents the assumption. |
 | **Live Foundry inference** | No endpoint configured | `assess_refund` falls back to an offline assessment that is explicitly labelled `live: false` and prefixed `[OFFLINE ASSESSMENT - NO MODEL WAS CALLED]`. It can never be mistaken for live output. |

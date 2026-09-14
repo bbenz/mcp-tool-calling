@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: refund-demo
+  labels:
+    app.kubernetes.io/name: refund-demo
+    app.kubernetes.io/part-of: mcp-tool-calling-demo
+    # Everything in here is synthetic conference fixtures. Nothing in this
+    # namespace should ever hold a real customer, order, or credential.
+    demo.only: "true"

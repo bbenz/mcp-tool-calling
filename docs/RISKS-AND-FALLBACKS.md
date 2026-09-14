@@ -159,9 +159,36 @@ Every realistic failure mode, how the presenter detects it **within seconds**, a
 | **Fallback** | Slides plus `docs/COVERAGE-MATRIX.md`. Every claim has a named scenario, a named test, and an expected-evidence column — read them. State plainly that you are describing recorded results. **The coverage matrix is the disaster-recovery artifact.** |
 | **Prevention** | Keep `COVERAGE-MATRIX.md` and `CONTROL-MAP.md` open in a browser tab and on a phone. |
 
----
+### R16 · Container image build fails on a blocked package index
 
-## Standing honesty commitments
+| | |
+| --- | --- |
+| **Likelihood** | **Confirmed on the build machine** · Medium on any corporate network |
+| **Detection** | `docker compose build` dies on the `pip install` layer with `SSLV3_ALERT_HANDSHAKE_FAILURE` against `files.pythonhosted.org` — within about ten seconds |
+| **Why it happens** | Some networks allow `pypi.org` (the index) but block the CDN that serves the wheels. Resolution starts, then the first download dies at TLS. It is the network, not the Dockerfile — reproduced identically from the host and from inside the build. |
+| **Fallback** | **Do not debug this on the day.** Three ways past it, in order: deploy to AKS instead (`az acr build` runs server-side and is unaffected); pass `--build-arg PIP_INDEX_URL=<internal mirror>`; or drop to the script-based demo, which needs no image at all. |
+| **Prevention** | Build the image at home, on a network you control, before you need it. `curl https://files.pythonhosted.org/simple/` is a one-second check for whether the venue's network will let you. |
+
+### R17 · AKS deployment not ready in time
+
+| | |
+| --- | --- |
+| **Likelihood** | Medium on a first attempt |
+| **Detection** | `aks-up` stalls at cluster creation or at `rollout status`, or the Service never gets an external IP |
+| **Why it happens** | `az aks create` takes several minutes on a good day, and load-balancer IP assignment is not instant. Quota, region capacity, and ACR attachment are all ways a first run stops. |
+| **Fallback** | The cloud path is **never on the critical path**. Close the tab and run the demo locally; nothing in the 25 minutes requires it. |
+| **Prevention** | **Deploy and tear down once as a rehearsal, days ahead.** Never deploy for the first time on the day of a talk. `kubectl -n refund-demo get pods` and `kubectl -n refund-demo logs <pod> -c <container>` are the only two diagnostics worth running. |
+
+### R18 · Cloud demo left running after the event
+
+| | |
+| --- | --- |
+| **Likelihood** | **High if not scheduled** — this is the one that costs money rather than credibility |
+| **Detection** | None. That is the problem: nothing fails, the bill just accrues |
+| **Fallback** | `.\scripts\aks-down.ps1` / `./scripts/aks-down.sh` deletes the whole resource group — cluster, registry, load balancer, public IP, managed identity — and clears the stale kubeconfig entry. |
+| **Prevention** | Tear down the **same day**, before you leave the venue. The deploy script prints the teardown command in its final output for exactly this reason. Put a calendar reminder on the day you deploy, not the day after. |
+
+---
 
 These are not failure modes — they are things that must be said regardless of how well the demo runs. Omitting them under time pressure would be a more serious failure than any crash above.
 
@@ -173,3 +200,5 @@ These are not failure modes — they are things that must be said regardless of 
 | Model refusal is **not** the security boundary | Segment 5 |
 | The audit log is a JSONL file — **not immutable, not tamper-proof** | Segment 6 |
 | Entra mode and the Azure deployment are **implemented but unexecuted** — no tenant or subscription was authorized | Q&A, if asked |
+| The container image was **never built** and the AKS deployment was **never run** — the manifests are test-pinned, which is not the same thing | Q&A, if asked |
+| One pod with five containers is a **demo shape, not a hosting recommendation** — the SQLite ledger makes one writer a hard constraint | Q&A, if asked |
