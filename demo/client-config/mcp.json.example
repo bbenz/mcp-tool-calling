@@ -1,0 +1,23 @@
+{
+  "$comment": [
+    "Secret-free MCP client configuration for the refund demo.",
+    "MERGE this 'refund-demo' entry into your existing client MCP config.",
+    "Do NOT overwrite your config file -- you will lose your other servers.",
+    "",
+    "There is deliberately no token, secret, or client_id here.",
+    "The client receives a 401 with a WWW-Authenticate header pointing at",
+    "Protected Resource Metadata, discovers the authorization server, and runs",
+    "its own OAuth flow with PKCE and an RFC 8707 resource indicator.",
+    "That discovery is the thing being demonstrated -- pre-seeding a token",
+    "would hide it.",
+    "",
+    "Resource B (http://localhost:8802/mcp) is intentionally NOT listed.",
+    "It exists to prove that a token minted for it is rejected by Resource A."
+  ],
+  "servers": {
+    "refund-demo": {
+      "type": "http",
+      "url": "http://localhost:8801/mcp"
+    }
+  }
+}

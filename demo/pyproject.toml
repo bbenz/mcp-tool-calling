@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "refund-demo"
+version = "1.0.0"
+description = "Who Can Call This MCP Tool? - OAuth, resource binding, and runtime policy demo"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp>=2.2.0,<3",
+    "starlette>=1.6.0",
+    "uvicorn[standard]>=0.52.0",
+    "pyjwt[crypto]>=2.13.0",
+    "cryptography>=45.0",
+    "httpx>=0.28.0",
+    "pydantic>=2.11",
+    "pydantic-settings>=2.7",
+    "python-dotenv>=1.0",
+    "msal>=1.31",
+    "openai>=1.60",
+    "azure-identity>=1.19",
+]
+
+[project.optional-dependencies]
+telemetry = [
+    "azure-monitor-opentelemetry>=1.6",
+    "opentelemetry-api>=1.29",
+]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.25",
+    "anyio>=4.6",
+]
+
+[project.scripts]
+refund-devidp = "refund_demo.devidp.server:main"
+refund-mcp = "refund_demo.mcp_server.app:main"
+refund-resource-b = "refund_demo.resource_b.app:main"
+refund-upstream = "refund_demo.upstream_api.app:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+filterwarnings = ["ignore::DeprecationWarning"]

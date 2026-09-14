@@ -1,0 +1,135 @@
+"""Configuration for every service in the refund demo.
+
+Two authorization modes are supported and they share one code path:
+
+* ``devidp``  - a real, standards-based OAuth authorization server that runs on
+  localhost (see :mod:`refund_demo.devidp`). It signs RS256 tokens with a real
+  key, publishes real JWKS and RFC 8414 metadata, and honours PKCE S256 and RFC
+  8707 ``resource`` indicators. It exists so the complete protocol trace can be
+  exercised without a tenant. It is NOT a bypass: tokens are validated by the
+  same validator used for Entra.
+* ``entra``   - Microsoft Entra ID.
+
+Switching modes changes only issuer metadata. It never relaxes validation.
+"""
+
+from __future__ import annotations
+
+import os
+from functools import lru_cache
+from typing import Literal
+
+from pydantic import Field, computed_field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+AuthMode = Literal["devidp", "entra"]
+
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+def _local_path(*parts: str) -> str:
+    return os.path.join(REPO_ROOT, ".local", *parts)
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=os.path.join(REPO_ROOT, ".env"),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    auth_mode: AuthMode = "devidp"
+
+    entra_tenant_id: str = ""
+    entra_authority: str = ""
+
+    devidp_port: int = 8800
+    devidp_issuer: str = "http://localhost:8800"
+
+    mcp_a_public_url: str = "http://localhost:8801"
+    mcp_a_audience: str = "api://refund-mcp-a"
+    mcp_a_port: int = 8801
+    mcp_a_client_id: str = ""
+    mcp_a_client_secret: str = ""
+
+    mcp_b_public_url: str = "http://localhost:8802"
+    mcp_b_audience: str = "api://refund-mcp-b"
+    mcp_b_port: int = 8802
+
+    upstream_api_url: str = "http://localhost:8803"
+    upstream_api_audience: str = "api://refund-upstream"
+    upstream_api_scope: str = "api://refund-upstream/Ledger.Refund"
+    upstream_api_port: int = 8803
+
+    scope_read: str = "Refunds.Read"
+    scope_write: str = "Refunds.Write"
+
+    allowed_client_ids: str = "copilot-demo-client"
+    demo_client_id: str = "copilot-demo-client"
+    unapproved_client_id: str = "rogue-demo-client"
+
+    foundry_endpoint: str = ""
+    foundry_deployment: str = ""
+    foundry_api_version: str = "2024-10-21"
+    foundry_api_key: str = ""
+
+    applicationinsights_connection_string: str = ""
+
+    refund_per_call_limit_minor: int = 25_000
+    refund_currency: str = "CAD"
+    policy_version: str = "refund-policy/2026-10-06.1"
+
+    audit_log_path: str = Field(default_factory=lambda: _local_path("audit.jsonl"))
+    ledger_path: str = Field(default_factory=lambda: _local_path("ledger.sqlite3"))
+    devidp_key_path: str = Field(default_factory=lambda: _local_path("devidp-key.json"))
+
+    clock_skew_seconds: int = 60
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def allowed_client_id_list(self) -> list[str]:
+        return [c.strip() for c in self.allowed_client_ids.split(",") if c.strip()]
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def issuer(self) -> str:
+        if self.auth_mode == "entra":
+            if self.entra_authority:
+                return self.entra_authority.rstrip("/")
+            return f"https://login.microsoftonline.com/{self.entra_tenant_id}/v2.0"
+        return self.devidp_issuer.rstrip("/")
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def authorization_server_metadata_url(self) -> str:
+        """RFC 8414 well-known location for the issuer."""
+        if self.auth_mode == "entra":
+            return f"{self.issuer}/.well-known/openid-configuration"
+        return f"{self.issuer}/.well-known/oauth-authorization-server"
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def jwks_uri(self) -> str:
+        if self.auth_mode == "entra":
+            return f"https://login.microsoftonline.com/{self.entra_tenant_id}/discovery/v2.0/keys"
+        return f"{self.issuer}/jwks"
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def expected_tenant_id(self) -> str | None:
+        return self.entra_tenant_id or None
+
+    def ensure_local_dir(self) -> None:
+        os.makedirs(_local_path(), exist_ok=True)
+
+
+@lru_cache(maxsize=1)
+def get_settings() -> Settings:
+    settings = Settings()
+    settings.ensure_local_dir()
+    return settings
+
+
+def reload_settings() -> Settings:
+    get_settings.cache_clear()
+    return get_settings()
