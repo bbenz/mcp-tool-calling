@@ -100,7 +100,7 @@ Run everything: `.\scripts\check.ps1` (or `./scripts/check.sh`) → 84 automated
 | 7.2 | Reset refuses to run against a real directory | `guard()` refuses when `AUTH_MODE=entra` unless `ALLOW_RESET=1` | `test_reset.py::test_reset_refuses_in_entra_mode_without_an_explicit_override` | Pre-show | `reset refused: ... AUTH_MODE=entra`, exit 2 | Operator |
 | 7.3 | Reset cannot delete outside the demo data directory | Containment check against the audit log's directory | `test_reset.py::test_reset_only_ever_removes_files_inside_the_data_directory` | Pre-show | An out-of-scope file survives | Operator |
 | 7.4 | Reset is safe to run between segments with services up | The signing key is preserved; rotation refused while `devidp` listens | `test_reset.py::test_reset_preserves_the_signing_key`, `::test_rotating_the_key_is_refused_while_devidp_is_running` | T-5 and between segments | Ledger returns to `211597d92491`; tokens keep validating | Operator |
-| 7.5 | Every operator command works in both shells | `.ps1` + `.sh` twin for all 9 commands; `_common.sh` resolves the venv layout | `check.ps1` and `check.sh` both print `READY` | Pre-show | Identical results from PowerShell and bash | Operator |
+| 7.5 | Every operator command works in both shells | `.ps1` + `.sh` twin for all 8 commands; `_common.sh` resolves the venv layout | `check.ps1` and `check.sh` both print `READY` | Pre-show | Identical results from PowerShell and bash | Operator |
 
 ---
 
