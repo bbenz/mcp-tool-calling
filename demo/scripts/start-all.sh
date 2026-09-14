@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Start all four demo services and wait until every one answers /health.
 set -euo pipefail
-DEMO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=_common.sh
+source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
+require_venv
 cd "$DEMO"
-PY="$DEMO/.venv/bin/python"
-[ -x "$PY" ] || { echo "venv missing - run ./scripts/bootstrap.sh first" >&2; exit 1; }
 
 [ "${1:-}" = "--reset" ] && ./scripts/reset.sh
 

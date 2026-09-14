@@ -23,14 +23,37 @@ The Store alias stub exits silently and looks like a broken install. Either disa
 
 ## 2. Bootstrap
 
+**All commands run from the `demo/` directory**, not the repository root:
+
 ```powershell
 cd demo
 .\scripts\bootstrap.ps1
 ```
 
-Bash equivalent: `./scripts/bootstrap.sh`
+Bash (including Git Bash on Windows):
+
+```bash
+cd demo
+chmod +x scripts/*.sh      # only if your clone lost the executable bit
+./scripts/bootstrap.sh
+```
 
 This creates `demo/.venv`, upgrades pip, installs the project in editable mode with dev extras, and copies `.env.example` to `.env` if you do not already have one. It is safe to re-run; it will not overwrite an existing `.env`.
+
+Every operator command has both a `.ps1` and a `.sh` form. The bash scripts detect whether the virtual environment uses the POSIX `.venv/bin` layout or the Windows `.venv/Scripts` layout, so they work under Git Bash on Windows as well as under Linux and macOS.
+
+### Choosing a shell (and a note on WSL)
+
+| You are in | Use | Notes |
+| --- | --- | --- |
+| Windows PowerShell / `pwsh` | `.\scripts\*.ps1` | The rehearsed path. Use this on stage. |
+| Git Bash on Windows | `./scripts/*.sh` | Shares the same Windows `demo/.venv`. |
+| Linux, macOS | `./scripts/*.sh` | Bootstrap creates a POSIX `.venv/bin` layout. |
+| WSL | `./scripts/*.sh`, **after its own bootstrap** | See below. |
+
+A `.ps1` file **cannot** be executed by bash — `./scripts/scenario.ps1` from a bash prompt fails with `No such file or directory` (or a syntax error) because bash is not a PowerShell interpreter. Use the `.sh` twin, or invoke PowerShell explicitly: `pwsh scripts/scenario.ps1 wrong-audience`.
+
+WSL is a **separate operating system**, so it needs its own virtual environment. `demo/.venv` created on Windows contains Windows binaries (`cryptography`, `pydantic-core`, and friends are compiled), and Linux cannot load them. The two layouts cannot coexist at the same path, so pick one per checkout: either work in Windows and use PowerShell or Git Bash, or work in WSL and run `./scripts/bootstrap.sh` *inside* WSL to build a Linux venv. Mixing them is the most common cause of confusing import errors.
 
 ---
 
@@ -61,15 +84,15 @@ Local state (ledger, audit log, signing key, PID files, logs) lives in `demo/.lo
 
 ## 4. Start, check, stop
 
-```powershell
-.\scripts\start-all.ps1          # start all four services, wait for health
-.\scripts\start-all.ps1 -Reset   # ...and reset the ledger to fixtures first
-.\scripts\health.ps1             # one-line health for each service
-.\scripts\check.ps1              # full verification: 78 tests + 14 scenarios
-.\scripts\stop-all.ps1           # stop everything
-```
+| Task | PowerShell | Bash |
+| --- | --- | --- |
+| Start all four services | `.\scripts\start-all.ps1` | `./scripts/start-all.sh` |
+| ...and reset the ledger first | `.\scripts\start-all.ps1 -Reset` | `./scripts/start-all.sh --reset` |
+| Health of each service | `.\scripts\health.ps1` | `./scripts/health.sh` |
+| **Full verification** | `.\scripts\check.ps1` | `./scripts/check.sh` |
+| Stop everything | `.\scripts\stop-all.ps1` | `./scripts/stop-all.sh` |
 
-`check.ps1` is the single command that proves the demo is ready. It prints `READY` only if every test and every scenario passed.
+`check` is the single command that proves the demo is ready. It prints `READY` only if every test and every scenario passed.
 
 Expected healthy state:
 
@@ -86,12 +109,14 @@ Logs stream to `demo/.local/logs/<service>.log`. PIDs are tracked in `demo/.loca
 
 ## 5. Running scenarios
 
-```powershell
-.\scripts\scenario.ps1 allowed-refund     # one named scenario
-.\scripts\scenario.ps1 -All               # all 14, in order
-.\scripts\audit.ps1 -Last 5               # read the audit trail
-.\scripts\reset.ps1                       # ledger back to fixtures
-```
+| Task | PowerShell | Bash |
+| --- | --- | --- |
+| One named scenario | `.\scripts\scenario.ps1 allowed-refund` | `./scripts/scenario.sh allowed-refund` |
+| List the scenarios | `.\scripts\scenario.ps1` | `./scripts/scenario.sh` |
+| All 14, in order | `.\scripts\scenario.ps1 -All` | `./scripts/scenario.sh --all` |
+| Read the audit trail | `.\scripts\audit.ps1 -Last 5` | `./scripts/audit.sh 5` |
+| Audit as raw JSON | `.\scripts\audit.ps1 -Last 3 -Raw` | `./scripts/audit.sh 3 --raw` |
+| Ledger back to fixtures | `.\scripts\reset.ps1` | `./scripts/reset.sh` |
 
 The 14 scenario names:
 
@@ -102,6 +127,10 @@ Every scenario records the ledger digest before and after, so "nothing changed" 
 ### Reset safety
 
 Reset is deliberately **not** an MCP tool. No model and no client can call it. It is an operator script (`refund_demo.reset`), it only ever removes files inside `demo/.local/`, and it **refuses to run when `AUTH_MODE=entra`** unless `ALLOW_RESET=1` is explicitly set — so it cannot be pointed at anything shared by accident.
+
+It also **keeps the local signing key**, which is why it is safe to run between segments with the services still up — exactly how the runbook uses it. The key is infrastructure, not demo state: deleting it underneath running services makes `devidp` mint tokens with a new key while every service still serves and caches the old JWKS, and the demo then fails with misleading `invalid_token` errors that only a full restart clears.
+
+If you genuinely want a fresh key, stop the services first and pass `-NewKey` (`--new-key` in bash). Rotating the key is **refused while `devidp` is listening**, so the footgun is not reachable by accident.
 
 ---
 
@@ -175,9 +204,13 @@ See `demo/infra/README.md` for parameters, outputs, cost considerations, and tea
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
+| `./scripts/scenario.ps1: No such file or directory` in bash | Two separate causes: bash cannot execute PowerShell, **and** you are probably in the repo root rather than `demo/` | `cd demo`, then use the bash script: `./scripts/scenario.sh wrong-audience`. To run the PowerShell one from bash, call it through PowerShell: `pwsh demo/scripts/scenario.ps1 wrong-audience` |
+| `scenario.ps1 : The term ... is not recognized` | Running from the repo root | Either `cd demo` first, or use the full path — the scripts locate `demo/` themselves, so `.\demo\scripts\scenario.ps1 wrong-audience` works from the root |
+| `no virtualenv found` from a `.sh` script | The venv has not been created, or was created for the other platform | Run `./scripts/bootstrap.sh` in the *same* shell family you intend to use (see §2) |
 | `python` prints nothing, exits 0 | Microsoft Store alias stub | Use `.venv\Scripts\python.exe`, or disable the alias (§1) |
 | Port already in use on start | Previous run not stopped | `.\scripts\stop-all.ps1`, then start again |
-| Scenario hangs ~30 s then times out | A service died — check `.local/logs/<service>.log` | `stop-all.ps1` then `start-all.ps1` |
+| Scenario hangs ~30 s then times out | A service died — check `.local/logs/<service>.log` | `stop-all` then `start-all` |
+| Every call suddenly fails `invalid_token` after a reset | The signing key was rotated underneath running services | Should no longer be reachable — reset keeps the key and refuses `-NewKey` while `devidp` listens. If you see it, `stop-all` then `start-all -Reset` |
 | `IDEMPOTENCY_KEY_REUSED` | Correct behaviour: a key was replayed with different parameters | `.\scripts\reset.ps1` |
 | Ledger digest differs from a prior run | Scenarios ran without a reset | `.\scripts\start-all.ps1 -Reset` |
 | `assess_refund` output is prefixed `[OFFLINE ASSESSMENT ...]` | No `FOUNDRY_ENDPOINT` configured | Expected offline. Set the endpoint for live inference. |

@@ -6,7 +6,7 @@ Every promise in the published session description, mapped to the code that impl
 
 **Tiers:** **A** = always live · **B** = live if on time, else prepared evidence · **C** = compress first.
 
-Run everything: `.\scripts\check.ps1` → 78 automated tests + 14 scenarios.
+Run everything: `.\scripts\check.ps1` (or `./scripts/check.sh`) → 84 automated tests + 14 scenarios.
 
 ---
 
@@ -89,6 +89,18 @@ Run everything: `.\scripts\check.ps1` → 78 automated tests + 14 scenarios.
 | 6.6 | Working Application Insights/Log Analytics query **plus** a local JSON view for stage reliability | `telemetry.py` schema; query in `docs/APPENDIX.md`; `audit_view.py` | `scripts\audit.ps1` | 20:00–23:00 **C** (KQL) / **A** (local) | Local view always works offline | Observability |
 | 6.7 | `docs/CONTROL-MAP.md` with owner, inputs, enforcement point, denial behavior, evidence, limitations for all five layers | `docs/CONTROL-MAP.md` | Present | 20:00–25:00 **A** | On screen through Q&A | — |
 | 6.8 | **Do not claim ordinary logs are immutable or tamper-proof** | Stated in `CONTROL-MAP.md` and `audit.py` | Documented | 20:00–23:00 **A** | Spoken: *"this is a JSONL file, not tamper-evident storage"* | Presenter |
+
+---
+
+## 7. Operator Safety
+
+| # | Requirement | Implementation | Check | Stage moment | Expected evidence | Boundary |
+| --- | --- | --- | --- | --- | --- | --- |
+| 7.1 | Reset is not reachable from the MCP surface | `refund_demo/reset.py` is an operator module; no tool registers it | `test_discovery.py` lists exactly three tools | Pre-show | `reset` never appears in `tools/list` | Operator |
+| 7.2 | Reset refuses to run against a real directory | `guard()` refuses when `AUTH_MODE=entra` unless `ALLOW_RESET=1` | `test_reset.py::test_reset_refuses_in_entra_mode_without_an_explicit_override` | Pre-show | `reset refused: ... AUTH_MODE=entra`, exit 2 | Operator |
+| 7.3 | Reset cannot delete outside the demo data directory | Containment check against the audit log's directory | `test_reset.py::test_reset_only_ever_removes_files_inside_the_data_directory` | Pre-show | An out-of-scope file survives | Operator |
+| 7.4 | Reset is safe to run between segments with services up | The signing key is preserved; rotation refused while `devidp` listens | `test_reset.py::test_reset_preserves_the_signing_key`, `::test_rotating_the_key_is_refused_while_devidp_is_running` | T-5 and between segments | Ledger returns to `211597d92491`; tokens keep validating | Operator |
+| 7.5 | Every operator command works in both shells | `.ps1` + `.sh` twin for all 9 commands; `_common.sh` resolves the venv layout | `check.ps1` and `check.sh` both print `READY` | Pre-show | Identical results from PowerShell and bash | Operator |
 
 ---
 

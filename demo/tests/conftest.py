@@ -37,7 +37,10 @@ def services(settings):
     }
     down = [name for name, url in required.items() if not _service_up(url)]
     if down:
-        pytest.skip(f"services not running: {', '.join(down)} (run scripts\\start-all.ps1)")
+        pytest.skip(
+            f"services not running: {', '.join(down)} "
+            "(run scripts\\start-all.ps1, or ./scripts/start-all.sh)"
+        )
     return required
 
 

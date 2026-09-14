@@ -7,12 +7,26 @@ A runnable demo of the question in the title. An MCP server exposes a `refund_or
 
 Everything here runs locally in about ten minutes, with no Azure subscription and no Entra tenant.
 
+**PowerShell** (the rehearsed path):
+
 ```powershell
 cd demo
 .\scripts\bootstrap.ps1
 .\scripts\start-all.ps1 -Reset
-.\scripts\check.ps1          # 78 tests + 14 scenarios -> READY
+.\scripts\check.ps1          # 84 tests + 14 scenarios -> READY
 ```
+
+**Bash** (Git Bash on Windows, Linux, macOS, WSL):
+
+```bash
+cd demo
+chmod +x scripts/*.sh        # only if your clone lost the executable bit
+./scripts/bootstrap.sh
+./scripts/start-all.sh --reset
+./scripts/check.sh           # 84 tests + 14 scenarios -> READY
+```
+
+Every command must be run from the `demo/` directory. A `.ps1` cannot be run by bash and a `.sh` cannot be run by PowerShell — use the twin for the shell you are in. WSL needs its own `bootstrap.sh`, because a Windows `.venv` will not load on Linux; see [SETUP.md](docs/SETUP.md#choosing-a-shell-and-a-note-on-wsl).
 
 ---
 
@@ -93,6 +107,8 @@ Full detail, with denial behaviour and limitations: **[docs/CONTROL-MAP.md](docs
 .\scripts\audit.ps1 -Last 5                   # the evidence trail
 ```
 
+In bash, use the `.sh` twin of each command — `./scripts/scenario.sh discovery`, `./scripts/scenario.sh --all`, `./scripts/audit.sh 5`.
+
 Every scenario prints the ledger digest **before and after**, so "nothing happened" is demonstrated rather than asserted.
 
 ---
@@ -106,7 +122,7 @@ Every scenario prints the ledger digest **before and after**, so "nothing happen
 | **[COVERAGE-MATRIX.md](docs/COVERAGE-MATRIX.md)** | Every promise → implementation → test → evidence |
 | [RUNBOOK.md](docs/RUNBOOK.md) | Presenter: timed schedule, tiers, stop-times, recovery |
 | [ONSTAGE-SCRIPT.md](docs/ONSTAGE-SCRIPT.md) | Presenter: literal prompts and narration |
-| [RISKS-AND-FALLBACKS.md](docs/RISKS-AND-FALLBACKS.md) | 15 failure modes, detection, prepared fallback |
+| [RISKS-AND-FALLBACKS.md](docs/RISKS-AND-FALLBACKS.md) | 16 failure modes, detection, prepared fallback |
 | [COMPATIBILITY-RECORD.md](docs/COMPATIBILITY-RECORD.md) | Verified versions, SDK API facts, defects found |
 | [CLIENT-APPROVAL-CHECKLIST.md](docs/CLIENT-APPROVAL-CHECKLIST.md) | Manual checks no test can prove |
 | [APPENDIX.md](docs/APPENDIX.md) | Sequence diagrams, sanitized audit records, KQL, design trade-offs, sources |
@@ -129,7 +145,7 @@ demo/
     devidp/              # local OAuth AS :8800 -- real RS256/PKCE/RFC 8707
     client.py            # OAuth client + protocol trace
     scenarios.py         # 14 named stage scenarios
-  tests/                 # 78 tests
+  tests/                 # 84 tests
   scripts/               # PowerShell + bash operator commands
   infra/                 # Bicep -- compiles; never deployed
   identity/              # Entra registration scripts -- never executed

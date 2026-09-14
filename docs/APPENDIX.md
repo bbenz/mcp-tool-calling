@@ -237,7 +237,7 @@ A failed on-behalf-of exchange raises `DelegationError` and the call fails. The 
 
 ### Why reset is not an MCP tool
 
-Any tool is callable by a model, and a model reads attacker-influenced text. `reset` is an operator script (`refund_demo.reset`), removes files only inside `demo/.local/`, and refuses to run in `entra` mode without `ALLOW_RESET=1`.
+Any tool is callable by a model, and a model reads attacker-influenced text. `reset` is an operator script (`refund_demo.reset`), removes files only inside `demo/.local/`, refuses to run in `entra` mode without `ALLOW_RESET=1`, and preserves the local signing key so it cannot break running services.
 
 ### Why the ledger uses `BEGIN IMMEDIATE`
 

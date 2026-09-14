@@ -11,10 +11,12 @@ This is the operational document: what to run, when to stop, and what to do when
 
 ## T-minus checklist
 
+> All commands run from the `demo/` directory. This runbook uses PowerShell, which is the rehearsed path — **present from PowerShell**. Every command has a bash twin (`.\scripts\x.ps1` → `./scripts/x.sh`) if you are on Linux or macOS; see `docs/SETUP.md` §2.
+
 ### T-24 hours
 
 - [ ] `.\scripts\stop-all.ps1` then `.\scripts\start-all.ps1 -Reset`
-- [ ] `.\scripts\check.ps1` → must end with **`READY`** (78 tests, 14/14 scenarios)
+- [ ] `.\scripts\check.ps1` → must end with **`READY`** (84 tests, 14/14 scenarios)
 - [ ] Full rehearsal with a timer. Note your actual time at each stop-time.
 - [ ] `docs/CLIENT-APPROVAL-CHECKLIST.md` sections A–D if you are using a live client
 - [ ] Re-verify `docs/COMPATIBILITY-RECORD.md` §5. **Do not upgrade `mcp` inside 72 hours** unless something is broken.
@@ -32,7 +34,7 @@ This is the operational document: what to run, when to stop, and what to do when
 ### T-5 minutes
 
 - [ ] `.\scripts\health.ps1` → four green lines
-- [ ] `.\scripts\reset.ps1` — start from the known digest `211597d92491`
+- [ ] `.\scripts\reset.ps1` — start from the known digest `211597d92491`. Safe with the services running; it keeps the signing key.
 - [ ] Slide 1 (trust-boundary diagram) on the projector
 - [ ] Timer started **at your first word**, visible to you
 

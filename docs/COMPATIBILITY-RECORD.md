@@ -75,6 +75,10 @@ Recorded because each one would have produced a misleading demo.
 | 4 | Ledger fingerprint had no single comparable value | "Nothing changed" was not provable at a glance | Added a SHA-256 `digest` over refund count and per-order totals |
 | 5 | Replaying an idempotency key with a **different amount** returned the original refund | A second, different request would report success it never got | Mismatched replays now raise `IDEMPOTENCY_KEY_REUSED` |
 | 6 | Dead `REQUIRED_SCOPES` mapping in `policy.py` | Misleading code during a walkthrough | Removed |
+| 7 | `audit.write()` never emitted to the logger | The Application Insights KQL query in the appendix matched **nothing** on stage | Audit records now mirrored to the `refund_demo` logger as `customDimensions`, wrapped so telemetry can never break an audit write |
+| 8 | `devidp` never called `telemetry.configure()` | The one service missing from any trace | `configure("devidp")` in `create_app()` |
+| 9 | Reset deleted the local signing key | **Every call fails `invalid_token` after the T-5 reset.** The key regenerates, so `devidp` mints tokens with a new key while running services still serve and cache the old JWKS. Only a full restart recovers. | Reset keeps the key by default; `--new-key` is refused while `devidp` is listening. Pinned by `tests/test_reset.py` (R9b) |
+| 10 | Bash operators had no `scenario`/`audit` scripts, and every `.sh` hardcoded `.venv/bin/python` | The two most-used stage commands were PowerShell-only, and no `.sh` ran under Git Bash on Windows | Added `scenario.sh`, `audit.sh`, and `_common.sh`, which resolves `.venv/bin` or `.venv/Scripts` |
 
 ---
 
@@ -82,7 +86,7 @@ Recorded because each one would have produced a misleading demo.
 
 ### Verified on this machine
 
-- All 78 automated tests pass (`pytest tests/ -q`).
+- All 84 automated tests pass (`pytest tests/ -q`).
 - All 14 stage scenarios pass (`python -m refund_demo.scenarios run-all`).
 - Full protocol trace: 401 challenge → PRM → AS metadata → PKCE S256 → RFC 8707 resource indicator → audience-bound token → `tools/call`.
 - On-behalf-of exchange, delegated identity preservation, and upstream re-enforcement.

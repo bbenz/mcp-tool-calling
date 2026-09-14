@@ -90,8 +90,20 @@ Every realistic failure mode, how the presenter detects it **within seconds**, a
 | --- | --- |
 | **Likelihood** | Medium — rehearsing without a reset |
 | **Detection** | A digest that is not the clean-start `211597d92491`, or `IDEMPOTENCY_KEY_REUSED` |
-| **Fallback** | `.\scripts\reset.ps1` — instant, scoped to `demo\.local\`. If `IDEMPOTENCY_KEY_REUSED` appears, **say what it is**: correct behaviour, refusing to replay a key against different parameters. It is a feature demonstrating itself at an awkward moment. |
+| **Fallback** | `.\scripts\reset.ps1` — instant, scoped to `demo\.local\`, and safe with the services running. If `IDEMPOTENCY_KEY_REUSED` appears, **say what it is**: correct behaviour, refusing to replay a key against different parameters. It is a feature demonstrating itself at an awkward moment. |
 | **Prevention** | `.\scripts\reset.ps1` at T-5. Reset is not an MCP tool, so no model and no client can trigger it. |
+
+### R9b · A reset invalidates every token
+
+*Found during dress rehearsal, and fixed — recorded because the failure mode is instructive and the fix is load-bearing.*
+
+| | |
+| --- | --- |
+| **Likelihood** | Was **high** — the runbook asks for a reset at T-5 with the services already up. Now prevented in code. |
+| **Detection** | Every call fails `invalid_token` / `KeyError: 'access_token'` immediately after a reset, with nothing obviously wrong in the logs |
+| **Cause** | Reset used to delete the local signing key. The file regenerates on demand, so it looked harmless — but `devidp` then minted tokens with a **new** key while every running service went on serving and caching the **old** JWKS. Nothing validates, and no amount of resetting fixes it. |
+| **Fallback** | `.\scripts\stop-all.ps1` then `.\scripts\start-all.ps1 -Reset`. A full restart is the only cure once it happens. |
+| **Prevention** | Reset now **keeps the key** (it is infrastructure, not demo state), and rotating it with `-NewKey` is **refused while `devidp` is listening**. Pinned by `tests/test_reset.py`. |
 
 ### R10 · Port already in use
 
