@@ -355,8 +355,15 @@ async def scenario_prompt_injection() -> ScenarioResult:
         evidence={
             "injection_detected_in_notes": assessment.get("untrusted_note_contains_instructions"),
             "assessment_was_live_model": (assessment.get("model") or {}).get("live"),
+            "assessment_was_blocked_by_content_filter": (
+                (assessment.get("model") or {}).get("filtered")
+            ),
+            "advisory_handled_by": assessment.get("handled_by"),
             "advisory_disposition": str(assessment.get("suggested_disposition"))[:80],
             "advisory_authorization_effect": assessment.get("authorization_effect"),
+            "authorization_still_enforced_by": assessment.get(
+                "authorization_still_enforced_by"
+            ),
         },
     )
 

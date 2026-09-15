@@ -363,3 +363,62 @@ def test_acr_build_does_not_stream_logs():
         assert "--no-logs" in text, path
         assert "acr task logs" in text, path
 
+
+# --- the optional Foundry wiring for the cloud demo ------------------------
+# The content filter is a defence layer that lives neither in this app nor in
+# MCP. Wiring it is two env vars; the tests below make sure those two vars
+# cannot drift out of the manifests without someone noticing.
+
+
+@pytest.fixture(scope="module")
+def configmap():
+    return _load(os.path.join(K8S, "configmap.yaml"))
+
+
+def test_foundry_is_declared_but_empty_by_default(configmap):
+    """Off by default: the demo must run with no model and no network."""
+    data = configmap["data"]
+    assert data["FOUNDRY_ENDPOINT"] == ""
+    assert data["FOUNDRY_DEPLOYMENT"] == ""
+    assert data["FOUNDRY_API_VERSION"]
+
+
+def test_no_foundry_credential_is_committed(configmap):
+    """A key in a ConfigMap is a key in plaintext, readable by every container."""
+    assert "FOUNDRY_API_KEY" not in configmap["data"]
+
+
+def test_only_the_mcp_server_receives_the_foundry_key(containers):
+    """assess_refund is the only caller, so nothing else gets the credential."""
+    holders = [
+        name
+        for name, c in containers.items()
+        if any(e["name"] == "FOUNDRY_API_KEY" for e in c.get("env", []))
+    ]
+    assert holders == ["mcp-a"]
+
+
+def test_the_foundry_key_is_optional(containers):
+    """No Secret must mean a labelled offline assessment, not a crash loop."""
+    ref = next(
+        e for e in containers["mcp-a"]["env"] if e["name"] == "FOUNDRY_API_KEY"
+    )["valueFrom"]["secretKeyRef"]
+    assert ref["optional"] is True
+    assert ref["name"] == "refund-demo-foundry"
+
+
+def test_the_mcp_server_still_binds_loopback_after_gaining_its_own_env(containers):
+    """mcp-a stopped using the shared YAML anchor; it must not have lost the bind."""
+    assert _env_of(containers["mcp-a"])["BIND_HOST"] == "127.0.0.1"
+
+
+@pytest.mark.parametrize("script", ["aks-up.ps1", "aks-up.sh"])
+def test_both_deploy_scripts_expose_the_same_foundry_flags(script):
+    path = os.path.join(DEMO, "scripts", script)
+    with open(path, encoding="utf-8") as fh:
+        text = fh.read()
+    for flag in ("FoundryEndpoint", "FoundryDeployment", "FoundryApiKey") if script.endswith(
+        ".ps1"
+    ) else ("--foundry-endpoint", "--foundry-deployment", "--foundry-api-key"):
+        assert flag in text, f"{script} is missing {flag}"
+    assert "refund-demo-foundry" in text

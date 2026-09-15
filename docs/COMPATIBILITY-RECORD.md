@@ -120,6 +120,8 @@ Recorded because each one would have produced a misleading demo.
 | 17 | `BIND_HOST: "0.0.0.0"` lived in the ConfigMap, which all five containers read | The five containers share one network namespace, so only `web` needs a public bind — but **`devidp` was listening on the pod IP**, reachable from any other pod in the cluster, with no NetworkPolicy in the way. That is an unauthenticated token-minting oracle that will issue a token for an arbitrary audience. It also made the comment in `service.yaml` untrue | `BIND_HOST` moved out of the ConfigMap onto each container: `127.0.0.1` for the four internal ones, `0.0.0.0` for `web`. Probes for the four had to become `exec` curl against localhost, because a kubelet `httpGet` targets the pod IP. Verified on a live pod: `podIP:8800` refuses, `localhost:8800` answers |
 | 18 | `/authorize` interpolated query parameters into HTML and never validated `redirect_uri` | Reflected XSS via `client_id`/`scope`/`resource`, and an **open redirect that hands a live authorization code to any host** — the exact failure this talk argues against, sitting inside the demo. Not internet-reachable in the shipped topology, which is the only reason it was not worse | `html.escape()` on the three interpolated values, and `redirect_uri` restricted to loopback callbacks per RFC 8252. Pinned by 10 tests |
 | 19 | The access key was compared with `==` | Not constant-time. Not practically exploitable — a 32-character CSPRNG secret behind a load balancer — but a real defect in code that argues about careful authorization | `hmac.compare_digest` |
+| 20 | `foundry.assess()` always sent `temperature=0.0` | **The model was never called.** Reasoning-class deployments accept only the default temperature and reject an explicit `0.0` with a 400. Every `assess_refund` call fell into the offline fallback — and because that fallback is deliberately graceful and clearly labelled, the demo kept passing 14/14 and nothing surfaced the fact that no model had ever been reached. The generic `BadRequestError` in the audit record sent the investigation toward auth and networking; the offending parameter was in the message the whole time | Determinism is still requested first, and a 400 that names `temperature` triggers one retry without it. The audit record now carries the provider's message, while the on-screen summary keeps a short label. Pinned by `tests/test_foundry.py` |
+| 21 | `stop-all.ps1` only stops the services it has PIDs for | Orphaned uvicorn processes from an earlier session keep ports 8800–8803 bound. `start-all` then reports **`all services healthy`** — because it health-checked the *ghosts*, not the processes it just launched. Code edits appear to have no effect, which is a genuinely disorienting thing to hit while rehearsing | Documented in the runbook with the recovery: check `Get-NetTCPConnection -LocalPort 8800..8803 -State Listen`, stop those PIDs explicitly, then start again |
 
 ---
 
@@ -127,7 +129,7 @@ Recorded because each one would have produced a misleading demo.
 
 ### Verified on this machine
 
-- All 164 automated tests pass (`pytest tests/ -q`).
+- All 188 automated tests pass (`pytest tests/ -q`).
 - All 14 stage scenarios pass (`python -m refund_demo.scenarios run-all`).
 - Full protocol trace: 401 challenge → PRM → AS metadata → PKCE S256 → RFC 8707 resource indicator → audience-bound token → `tools/call`.
 - On-behalf-of exchange, delegated identity preservation, and upstream re-enforcement.
@@ -138,7 +140,7 @@ Recorded because each one would have produced a misleading demo.
 - **The clean-ledger digest is identical on the laptop, in Compose, and on AKS** (`211597d92491…`); a full scenario run lands on `a24b01f92f67` on both the laptop and the cluster.
 - **`readOnlyRootFilesystem: true` holds in practice** — no container restarted.
 - Image layout: source at `/app/src`, `.local` resolving to `/app/.local`, `.venv` and `tests` excluded, and the non-root user able to write the state directory.
-- Compose file syntax (`docker compose config`), Dockerfile lint (`docker build --check`, no warnings), and cross-file agreement between Compose, Kubernetes and the Dockerfile (57 tests).
+- Compose file syntax (`docker compose config`), Dockerfile lint (`docker build --check`, no warnings), and cross-file agreement between Compose, Kubernetes and the Dockerfile (62 tests).
 - Both teardown scripts on a non-existent resource group, and identical registry-name derivation between PowerShell and bash.
 
 ### NOT verified — state this plainly if asked
@@ -150,7 +152,8 @@ Recorded because each one would have produced a misleading demo.
 | **`aks-up.sh`** (bash deploy) | The verified deployment ran `aks-up.ps1` | Syntax-checked and command-for-command equivalent to the PowerShell version, but never driven a real deployment. |
 | **Copilot / VS Code MCP OAuth redirect URIs** | Could not be confirmed against a live client | `demo/identity/README.md` marks these as TODO. Confirm from the client's own error message during rehearsal. |
 | **Least-privilege Foundry RBAC role** | Not confirmed against live role definitions | `demo/infra/modules/foundry.bicep` documents the assumption. |
-| **Live Foundry inference** | No endpoint configured | `assess_refund` falls back to an offline assessment that is explicitly labelled `live: false` and prefixed `[OFFLINE ASSESSMENT - NO MODEL WAS CALLED]`. It can never be mistaken for live output. |
+| **Live Foundry inference** | Verified against a real deployment | `assess_refund` was run live against an Azure AI Services deployment (`gpt-5.6-sol`): a benign order returned model text with real token counts, and the injected order was rejected by the platform content filter. With no endpoint configured the tool returns a labelled offline assessment, so the demo still runs with the network off. |
+| **Platform content filter as a defence layer** | Verified live | Azure's content filter refused the injected order notes before the model generated anything. Reported as `filtered: true` and `handled_by: platform content filter`, not as an outage. The refund is still denied by the policy engine either way. |
 
 ---
 

@@ -251,44 +251,55 @@ PAGE = """<!doctype html>
   :root{--bg:#0d1117;--panel:#161b22;--line:#30363d;--fg:#e6edf3;--dim:#8b949e;
         --ok:#3fb950;--bad:#f85149;--warn:#d29922;--accent:#58a6ff}
   *{box-sizing:border-box}
+  /* Sized for a projector at the back of a room, not a laptop at arm's length.
+     Everything below is in rem, so the A-/A+ control scales the whole page. */
+  html{font-size:20px}
   body{margin:0;background:var(--bg);color:var(--fg);
-       font:18px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace}
+       font:1rem/1.55 ui-monospace,SFMono-Regular,Consolas,monospace}
   header{padding:1.2rem 1.5rem;border-bottom:1px solid var(--line);
          display:flex;flex-wrap:wrap;gap:1rem;align-items:baseline}
-  h1{font-size:1.5rem;margin:0;font-weight:600}
-  .sub{color:var(--dim);font-size:.95rem}
+  h1{font-size:1.9rem;margin:0;font-weight:600}
+  .sub{color:var(--dim);font-size:1rem}
   main{display:grid;grid-template-columns:minmax(420px,1fr) minmax(420px,1fr);
        gap:1.2rem;padding:1.2rem 1.5rem}
   @media(max-width:1100px){main{grid-template-columns:1fr}}
   section{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:1rem}
-  h2{font-size:1.05rem;margin:0 0 .8rem;color:var(--accent);
+  h2{font-size:1.15rem;margin:0 0 .8rem;color:var(--accent);
      text-transform:uppercase;letter-spacing:.06em}
-  button{font:inherit;font-size:.9rem;background:#21262d;color:var(--fg);
-         border:1px solid var(--line);border-radius:6px;padding:.4rem .7rem;cursor:pointer}
+  button{font:inherit;font-size:1rem;background:#21262d;color:var(--fg);
+         border:1px solid var(--line);border-radius:6px;padding:.45rem .8rem;cursor:pointer}
   button:hover:not(:disabled){border-color:var(--accent)}
   button:disabled{opacity:.5;cursor:wait}
+  .zoom{display:flex;gap:.3rem;margin-left:auto;align-items:center}
+  .zoom button{padding:.2rem .6rem;font-size:1rem;line-height:1}
   .row{display:flex;justify-content:space-between;align-items:center;gap:.6rem;
-       padding:.45rem 0;border-bottom:1px solid #21262d}
+       padding:.5rem 0;border-bottom:1px solid #21262d}
   .row:last-child{border-bottom:0}
-  .name{font-size:.95rem}
-  .badge{font-size:.75rem;padding:.1rem .45rem;border-radius:4px;border:1px solid}
+  .name{font-size:1.05rem}
+  .badge{font-size:.85rem;padding:.15rem .5rem;border-radius:4px;border:1px solid}
   .pass{color:var(--ok);border-color:var(--ok)}
   .fail{color:var(--bad);border-color:var(--bad)}
-  .digest{font-size:1.5rem;color:var(--warn);word-break:break-all}
+  .digest{font-size:2.1rem;color:var(--warn);word-break:break-all;line-height:1.25}
   .changed{color:var(--bad)} .same{color:var(--ok)}
   pre{background:#0b0f14;border:1px solid var(--line);border-radius:6px;
-      padding:.7rem;overflow:auto;max-height:22rem;font-size:.82rem;margin:0}
-  .toolbar{display:flex;gap:.5rem;margin-bottom:.8rem;flex-wrap:wrap}
-  .kv{display:grid;grid-template-columns:auto 1fr;gap:.2rem .8rem;font-size:.85rem}
+      padding:.8rem;overflow:auto;max-height:24rem;font-size:.95rem;
+      line-height:1.5;margin:0}
+  .toolbar{display:flex;gap:.5rem;margin-bottom:.8rem;flex-wrap:wrap;align-items:center}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:.35rem .9rem;font-size:1rem}
   .kv dt{color:var(--dim)} .kv dd{margin:0;word-break:break-all}
-  .note{color:var(--dim);font-size:.8rem;margin-top:.8rem;line-height:1.45}
+  .note{color:var(--dim);font-size:.9rem;margin-top:.8rem;line-height:1.5}
   .dot{display:inline-block;width:.55rem;height:.55rem;border-radius:50%;margin-right:.4rem}
   .up{background:var(--ok)} .down{background:var(--bad)}
 </style>
 <header>
   <h1>Who Can Call This MCP Tool?</h1>
   <span class="sub">OAuth &middot; resource binding &middot; runtime policy &mdash; synthetic data only</span>
-  <span class="sub" id="svc" style="margin-left:auto"></span>
+  <span class="zoom">
+    <span class="sub" id="svc" style="margin-right:.6rem"></span>
+    <button onclick="zoom(-2)" title="Smaller text">A&minus;</button>
+    <button onclick="zoom(2)" title="Larger text">A+</button>
+    <button onclick="zoom(0)" title="Reset text size">Reset</button>
+  </span>
 </header>
 <main>
   <section>
@@ -327,6 +338,31 @@ const $ = id => document.getElementById(id);
 let scenarios = [];
 
 const esc = t => (t||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+// Room sizes vary and projectors lie. Let the presenter fix it from the stage
+// rather than discovering the back row cannot read the digest.
+const ZOOM_MIN = 14, ZOOM_MAX = 40, ZOOM_DEFAULT = 20;
+function applyZoom(px){
+  document.documentElement.style.fontSize = px + 'px';
+  try{ localStorage.setItem('demoZoom', px); }catch(e){}
+}
+function zoom(delta){
+  if(delta === 0) return applyZoom(ZOOM_DEFAULT);
+  const now = parseFloat(document.documentElement.style.fontSize) || ZOOM_DEFAULT;
+  applyZoom(Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, now + delta)));
+}
+(function restoreZoom(){
+  let saved = null;
+  try{ saved = localStorage.getItem('demoZoom'); }catch(e){}
+  applyZoom(saved ? parseFloat(saved) : ZOOM_DEFAULT);
+})();
+document.addEventListener('keydown', e => {
+  if(!e.ctrlKey && !e.metaKey && !e.altKey && e.target.tagName !== 'INPUT'){
+    if(e.key === '+' || e.key === '=') zoom(2);
+    else if(e.key === '-' || e.key === '_') zoom(-2);
+    else if(e.key === '0') zoom(0);
+  }
+});
 
 async function boot(){
   scenarios = await (await fetch(q('/api/scenarios'))).json();

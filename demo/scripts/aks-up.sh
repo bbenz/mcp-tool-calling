@@ -16,6 +16,8 @@
 #   ./scripts/aks-up.sh [--resource-group NAME] [--location REGION]
 #                       [--cluster-name NAME] [--registry-name NAME]
 #                       [--node-count N] [--node-size SIZE]
+#                       [--foundry-endpoint URL] [--foundry-deployment NAME]
+#                       [--foundry-api-key KEY]
 #                       [--no-access-key] [--yes]
 set -euo pipefail
 
@@ -35,6 +37,9 @@ NODE_COUNT=1
 NODE_SIZE=Standard_D2s_v3
 ACCESS_KEY_ENABLED=1
 ASSUME_YES=0
+FOUNDRY_ENDPOINT=""
+FOUNDRY_DEPLOYMENT=""
+FOUNDRY_API_KEY=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -45,8 +50,11 @@ while [ $# -gt 0 ]; do
     --node-count)     NODE_COUNT="$2"; shift 2 ;;
     --node-size)      NODE_SIZE="$2"; shift 2 ;;
     --no-access-key)  ACCESS_KEY_ENABLED=0; shift ;;
+    --foundry-endpoint)   FOUNDRY_ENDPOINT="$2"; shift 2 ;;
+    --foundry-deployment) FOUNDRY_DEPLOYMENT="$2"; shift 2 ;;
+    --foundry-api-key)    FOUNDRY_API_KEY="$2"; shift 2 ;;
     --yes|-y)         ASSUME_YES=1; shift ;;
-    -h|--help)        sed -n '2,20p' "$0"; exit 0 ;;
+    -h|--help)        sed -n '2,22p' "$0"; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
 done
@@ -152,6 +160,26 @@ else
 fi
 
 kubectl apply -f "$DEMO/k8s/configmap.yaml"
+
+# Optional: point the advisory tool at a real Foundry deployment. Without this
+# the tool returns a labelled offline assessment and every scenario still
+# passes -- the model is a demo layer, never a dependency.
+if [ -n "$FOUNDRY_ENDPOINT" ] && [ -n "$FOUNDRY_DEPLOYMENT" ]; then
+  kubectl -n refund-demo set env configmap/refund-demo-config \
+    "FOUNDRY_ENDPOINT=$FOUNDRY_ENDPOINT" "FOUNDRY_DEPLOYMENT=$FOUNDRY_DEPLOYMENT" >/dev/null
+  if [ -n "$FOUNDRY_API_KEY" ]; then
+    kubectl -n refund-demo create secret generic refund-demo-foundry \
+      --from-literal=api-key="$FOUNDRY_API_KEY" --dry-run=client -o yaml | kubectl apply -f -
+    echo "      Foundry: $FOUNDRY_DEPLOYMENT (api key)"
+  else
+    kubectl -n refund-demo delete secret refund-demo-foundry --ignore-not-found >/dev/null
+    echo "      Foundry: $FOUNDRY_DEPLOYMENT (no key -- needs workload identity)"
+  fi
+elif [ -n "$FOUNDRY_ENDPOINT" ] || [ -n "$FOUNDRY_DEPLOYMENT" ]; then
+  echo "--foundry-endpoint and --foundry-deployment must be given together" >&2
+  exit 2
+fi
+
 sed "s|IMAGE_PLACEHOLDER|$IMAGE|g" "$DEMO/k8s/deployment.yaml" | kubectl apply -f -
 kubectl apply -f "$DEMO/k8s/service.yaml"
 

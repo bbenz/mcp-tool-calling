@@ -13,7 +13,7 @@ Everything here runs locally in about ten minutes, with no Azure subscription an
 cd demo
 .\scripts\bootstrap.ps1
 .\scripts\start-all.ps1 -Reset
-.\scripts\check.ps1          # 164 tests + 14 scenarios -> READY
+.\scripts\check.ps1          # 188 tests + 14 scenarios -> READY
 ```
 
 **Bash** (Git Bash on Windows, Linux, macOS, WSL):
@@ -23,7 +23,7 @@ cd demo
 chmod +x scripts/*.sh        # only if your clone lost the executable bit
 ./scripts/bootstrap.sh
 ./scripts/start-all.sh --reset
-./scripts/check.sh           # 164 tests + 14 scenarios -> READY
+./scripts/check.sh           # 188 tests + 14 scenarios -> READY
 ```
 
 Every command must be run from the `demo/` directory. A `.ps1` cannot be run by bash and a `.sh` cannot be run by PowerShell — use the twin for the shell you are in. WSL needs its own `bootstrap.sh`, because a Windows `.venv` will not load on Linux; see [SETUP.md](docs/SETUP.md#choosing-a-shell-and-a-note-on-wsl).
@@ -46,6 +46,7 @@ flowchart TB
         U([User])
         C["MCP Client<br/><i>owns approval</i>"]
         F["Foundry model<br/><i>reads attacker-influenced text</i>"]
+        CF["Platform content filter<br/><i>not yours, not MCP</i>"]
     end
     subgraph yours["Your trust boundary"]
         AS["Authorization Server<br/>:8800<br/><i>authentication + audience binding</i>"]
@@ -61,6 +62,7 @@ flowchart TB
     C -->|"tools/call + Bearer"| A
     C -.->|"same token: 401 wrong audience"| B
     A -->|"advisory only"| F
+    F -.->|"prompt refused"| CF
     A -->|"on-behalf-of exchange"| AS
     A -->|"aud=api://refund-upstream"| API
     API --> L
@@ -84,6 +86,7 @@ Red is outside your control **even though it is part of your system**. The clien
 | **MCP Server** | **You** | ***May this principal do this to this object, now?*** | Whether the human meant it |
 | Upstream API | You | *Is this still true at mutation time?* | Who was at the keyboard |
 | Foundry model | You, but inputs are hostile | *What would a reasonable analyst advise?* | **Nothing. It enforces nothing.** |
+| Platform content filter | The model platform — **not you** | *Is this prompt hostile?* | Whether this principal may refund this order |
 
 Full detail, with denial behaviour and limitations: **[docs/CONTROL-MAP.md](docs/CONTROL-MAP.md)**.
 
@@ -156,7 +159,7 @@ demo/
     web/                 # browser view :8080 -- reports decisions, makes none
     client.py            # OAuth client + protocol trace
     scenarios.py         # 14 named stage scenarios
-  tests/                 # 164 tests
+  tests/                 # 188 tests
   scripts/               # PowerShell + bash operator commands
   docker/                # Dockerfile + Compose -- five containers, one image
   k8s/                   # AKS manifests -- one pod, five containers
@@ -175,7 +178,8 @@ Stated here because a talk about authorization should not overclaim.
 - **The audit log is a JSONL file.** Structured and pseudonymized — but not immutable and not tamper-proof.
 - **`AUTH_MODE=entra` has never been executed.** No tenant was authorized for this build. The default and the rehearsed path is the local authorization server, which is a real OAuth server validated by the same code.
 - **`demo/infra` has never been deployed.** The Bicep compiles; that is the entire claim.
-- **The AKS deployment is verified.** A real cluster was created, the image was built by ACR Tasks, the pod rolled out 5/5 ready with zero restarts, and all 14 scenarios passed against the public IP with a ledger digest identical to the laptop. Manifests are pinned by 57 tests. [DEPLOYMENT.md §7](docs/DEPLOYMENT.md#7-what-is-verified-and-what-is-not).
+- **The live model is verified; the model *in the cluster* is not.** `assess_refund` was run against a real `gpt-5.6-sol` deployment from a laptop — benign orders return model text, injected ones are refused by the platform content filter. Passing that config into AKS is test-pinned but has not been executed. [DEPLOYMENT.md §7](docs/DEPLOYMENT.md#7-what-is-verified-and-what-is-not).
+- **The AKS deployment is verified.** A real cluster was created, the image was built by ACR Tasks, the pod rolled out 5/5 ready with zero restarts, and all 14 scenarios passed against the public IP with a ledger digest identical to the laptop. Manifests are pinned by 62 tests. [DEPLOYMENT.md §7](docs/DEPLOYMENT.md#7-what-is-verified-and-what-is-not).
 - **`aks-up.sh` has never driven a real deployment.** The verified runs used `aks-up.ps1`; the bash twin is syntax-checked and command-for-command equivalent.
 - **The cloud mode has no TLS.** The access key travels in the URL over plain HTTP. Treat any shared link as disposable — [DEPLOYMENT.md §8](docs/DEPLOYMENT.md#8-security-posture-of-the-cloud-mode).
 - **The client approval UI is verified by hand only.** No automated test can prove a dialog appeared.

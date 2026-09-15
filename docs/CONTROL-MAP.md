@@ -15,6 +15,7 @@ flowchart LR
     AS -.->|access token<br/>aud=api://refund-mcp-a| C
     C -->|tools/call + Bearer| A[MCP Server<br/>Resource A]
     A -->|assess, advisory only| F[Foundry model]
+    F -.->|prompt refused| CF[Platform content filter]
     A -->|OBO exchange| AS
     A -->|delegated token<br/>aud=api://refund-upstream| UP[Upstream Refund API]
     UP --> L[(Ledger)]
@@ -126,6 +127,21 @@ Red = **outside your trust boundary**, even though it is part of your system. Th
 | **Limitations** | ⚠️ A model reading untrusted text **is an untrusted input channel**. When offline it returns `live: false` with an explicit `[OFFLINE ASSESSMENT - NO MODEL WAS CALLED]` prefix so advisory output can never be mistaken for a live result. |
 
 **The rule:** model output may inform a human. It may never be a term in an authorization decision.
+
+### Layer 5b — the platform content filter
+
+Configure a Foundry endpoint and a fourth actor appears that is worth naming out loud, because it belongs to **neither this application nor MCP**:
+
+| | |
+| --- | --- |
+| **Owner** | The model platform (Azure AI Content Safety), configured outside the app |
+| **Enforcement point** | The inference endpoint, before the model generates |
+| **What it denies** | Prompts it judges hostile. The injected order notes in `ORD-1005` are refused outright |
+| **Denial behavior** | A 400 the app reports as `filtered: true`, `handled_by: platform content filter` — a **result**, not an outage |
+| **Evidence** | `scenario.ps1 prompt-injection` with `FOUNDRY_ENDPOINT` set: `assessment_was_blocked_by_content_filter: True` |
+| **Limitations** | ⚠️ Still not the authorization boundary. It is best-effort, it is not under your control, and it can be tuned or disabled by whoever owns the resource. |
+
+**Why it is in the demo:** it shows that a control can live in the platform rather than in your code, and that MCP composes with tooling it knows nothing about. It also makes the central point harder to dodge — **two** independent layers declined the injected content, and *neither* is what stops the refund. The policy engine denies `ORD-1003` identically whether the filter fired, the model answered, or nothing was configured at all.
 
 ---
 

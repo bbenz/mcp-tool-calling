@@ -218,6 +218,7 @@ async def assess_refund(order_id: str, ctx: Context) -> dict[str, Any]:
             prompt_tokens=assessment.prompt_tokens,
             completion_tokens=assessment.completion_tokens,
             live=assessment.live,
+            filtered=assessment.filtered,
         ).to_dict()
         audit_record.result = "ok"
         audit.write(audit_record)

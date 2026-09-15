@@ -32,3 +32,14 @@ data:
   # Reset mutates the ledger. It stays off on anything with a public address;
   # use scripts/aks-down.ps1 and redeploy to get a clean ledger.
   WEB_ALLOW_RESET: "0"
+
+  # Optional: a Microsoft Foundry deployment for the advisory assess_refund
+  # tool. Empty means the tool returns a clearly-labelled offline assessment,
+  # so the demo works with no model and no network. Set these (aks-up.ps1
+  # -FoundryEndpoint / -FoundryDeployment) to show a third defence layer that
+  # lives neither in this app nor in MCP: Azure's content filter rejects the
+  # injected order notes before the model ever generates. That is a *result*,
+  # not an outage -- and the policy engine still decides the refund either way.
+  FOUNDRY_ENDPOINT: ""
+  FOUNDRY_DEPLOYMENT: ""
+  FOUNDRY_API_VERSION: "2024-10-21"

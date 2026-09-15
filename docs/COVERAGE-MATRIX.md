@@ -6,7 +6,7 @@ Every promise in the published session description, mapped to the code that impl
 
 **Tiers:** **A** = always live · **B** = live if on time, else prepared evidence · **C** = compress first.
 
-Run everything: `.\scripts\check.ps1` (or `./scripts/check.sh`) → 164 automated tests + 14 scenarios.
+Run everything: `.\scripts\check.ps1` (or `./scripts/check.sh`) → 188 automated tests + 14 scenarios.
 
 ---
 
@@ -76,6 +76,9 @@ Run everything: `.\scripts\check.ps1` (or `./scripts/check.sh`) → 164 automate
 | 5.5 | **Token reuse at the wrong MCP server**, with a valid B-token control | Resource B on :8802, distinct audience | `test_adversarial.py::test_token_minted_for_resource_b_is_rejected_at_resource_a` + `::test_the_same_token_works_at_its_own_resource`; `scenario wrong-audience` | 15:00–20:00 **A** | A succeeds; B rejected **before tool execution**; control proves B is not simply broken | MCP server |
 | 5.6 | Keep adversarial fixtures synthetic and presenter-owned | All fixtures local; `devidp` never runs in cloud | `fixtures.py` | — **A** | No real customer data anywhere | Presenter |
 | 5.7 | Label a harness replay as a harness replay | Scenario output says so explicitly | `scenario prompt-injection` | 15:00–20:00 **A** | Never presented as a fresh model attack | Presenter |
+| 5.8 | Show a control that lives **outside** the app and outside MCP | Azure content filter on the Foundry deployment; `foundry._filtered` reports it as a result, not an outage | `test_foundry.py::test_the_content_filter_is_reported_as_a_layer_that_acted_not_a_failure`, `::test_a_filtered_result_names_the_layer_outside_the_app`; `scenario prompt-injection` with `FOUNDRY_ENDPOINT` set | 15:00–20:00 **C** | `assessment_was_blocked_by_content_filter: True`, `handled_by: platform content filter` | Azure AI Content Safety |
+| 5.9 | Show that the boundary is unchanged by which layer fired | Same policy denial with the filter on, the model answering, or nothing configured | `test_foundry.py::test_every_outcome_points_at_the_same_authorization_boundary`; `scenario prompt-injection` in both modes | 15:00–20:00 **A** | `authorization_still_enforced_by` identical in every outcome; ledger digest unchanged | MCP server |
+| 5.10 | Never let a failed model call masquerade as a filtered one, or vice versa | `_is_content_filter` distinguishes them; defect 20 made this concrete | `test_foundry.py::test_a_genuine_failure_is_not_dressed_up_as_a_filter`, `::test_a_model_that_refuses_temperature_is_retried_without_it` | — **C** | Distinct labels and distinct `outcome` prefixes | MCP server |
 
 ## 6. Audit Evidence And Attendee Control Map
 
@@ -139,7 +142,7 @@ The web UI and the container deployments were added so the demo can be reused be
 | --- | --- | --- |
 | Entra ID mode (`AUTH_MODE=entra`) | **Untested** | No tenant access was authorized. Code written and reviewed; never executed. |
 | Azure deployment (`demo/infra`) | **Never deployed** | Bicep compiles (`az bicep build`); nothing was applied. |
-| Live Foundry inference | **Not configured** | Offline path is explicitly labelled `live: false`. |
+| Live Foundry inference | **Verified** | Ran live against `gpt-5.6-sol`; benign order returned model text, injected order was refused by the content filter. Offline path still labelled `live: false`. |
 | Client OAuth redirect URIs | **Unconfirmed** | Requires a live client; see `demo/identity/README.md`. |
 | Least-privilege Foundry RBAC role | **Assumed** | Documented in `infra/modules/foundry.bicep`; not validated against live role definitions. |
 | Client approval UI (4.3, 4.4) | **Manual only** | No automated test can prove a dialog appeared. |

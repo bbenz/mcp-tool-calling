@@ -90,6 +90,7 @@ class ModelInvocation:
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
     live: bool = False
+    filtered: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

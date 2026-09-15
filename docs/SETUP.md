@@ -1,6 +1,6 @@
 # Setup
 
-Operator setup for the **"Who Can Call This MCP Tool?"** demo. Local-only setup takes about ten minutes and is all you need to run every scenario in the talk. The Entra and Azure sections are optional and were not deployed — read [§7](#7-optional-microsoft-entra-id-mode) before attempting them.
+Operator setup for the **"Who Can Call This MCP Tool?"** demo. Local-only setup takes about ten minutes and is all you need to run every scenario in the talk. A live model is optional — see [§7](#7-optional-a-live-model-behind-assess_refund). The Entra section was never executed against a tenant; read [§8](#8-optional-microsoft-entra-id-mode) before attempting it.
 
 This page covers the local setup. For the containerised and cloud options — Docker Compose and Azure Kubernetes Service — and for the optional web interface, see **[DEPLOYMENT.md](DEPLOYMENT.md)**. None of them are needed for the talk.
 
@@ -189,7 +189,34 @@ Two things must be confirmed by hand, because no automated test can prove a UI w
 
 ---
 
-## 7. Optional: Microsoft Entra ID mode
+## 7. Optional: a live model behind `assess_refund`
+
+The advisory tool works with no model at all — it returns a clearly labelled offline assessment, which is why nothing on the critical path needs the network. Point it at a Microsoft Foundry deployment and two extra things become demonstrable.
+
+Create `demo\.env` (git-ignored) with:
+
+```ini
+FOUNDRY_ENDPOINT=https://<your-resource>.cognitiveservices.azure.com/
+FOUNDRY_DEPLOYMENT=<your-deployment-name>
+FOUNDRY_API_KEY=
+```
+
+Leave `FOUNDRY_API_KEY` empty to authenticate with `DefaultAzureCredential` — your own `az login` locally, a managed identity in Azure. That is the preferred path and needs the **Foundry User** (or *Cognitive Services OpenAI User*) role on the resource. Restart the services afterwards; the settings are read at startup.
+
+What you get:
+
+| Order | Result | What it shows |
+| --- | --- | --- |
+| A benign order | `live: true`, real token counts and latency | The model is genuinely being called, and its output is still only advice |
+| `ORD-1005` (injected notes) | `filtered: true`, `handled_by: platform content filter` | A control that lives in the platform, not in your code and not in MCP |
+
+Both were verified against a real `gpt-5.6-sol` deployment. **Neither changes the refund decision** — that is the point, and `authorization_still_enforced_by` says so in every response.
+
+> ⚠️ A live call adds 4–7 seconds to `assess_refund`. Everything else is unaffected, and `prompt-injection` still passes either way. If you are tight on time, leave it unconfigured.
+
+---
+
+## 8. Optional: Microsoft Entra ID mode
 
 > **Not verified.** No tenant access was authorized during the build, so the MSAL on-behalf-of path and live Entra discovery have **never been executed**. The scripts are written and reviewed, not proven. Budget real time, and never switch modes on the day of the talk.
 
@@ -207,7 +234,7 @@ The public client gets **no secret**. The confidential middle-tier uses a certif
 
 ---
 
-## 8. Optional: containers and Azure
+## 9. Optional: containers and Azure
 
 Three deployment options beyond the operator scripts. **None of them are needed for the 25-minute talk**, and none of them change the script-based demo. Full instructions: **[DEPLOYMENT.md](DEPLOYMENT.md)**.
 
@@ -225,7 +252,7 @@ Both wrappers wait for all five containers to report healthy before printing the
 
 ### Azure Kubernetes Service — one pod, five containers
 
-> **Deployed and verified.** A real cluster was created and all 14 scenarios passed against the public IP. Manifests are pinned by 57 tests. Expect roughly 8–10 minutes for a cold deploy, and rehearse it days ahead rather than on the day.
+> **Deployed and verified.** A real cluster was created and all 14 scenarios passed against the public IP. Manifests are pinned by 62 tests. Expect roughly 8–10 minutes for a cold deploy, and rehearse it days ahead rather than on the day.
 
 | Task | PowerShell | Bash |
 | --- | --- | --- |
@@ -251,7 +278,7 @@ See `demo/infra/README.md` for parameters, outputs, cost considerations, and tea
 
 ---
 
-## 9. Troubleshooting
+## 10. Troubleshooting
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |

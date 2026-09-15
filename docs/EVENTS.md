@@ -34,6 +34,12 @@ The demo was built for this session. Everything in this repository was written a
 
 A security review of that public exposure then found four more defects (16–19), the worst being an access-key gate that failed **open** — a missing Secret would have served the whole demo anonymously with the pod still reporting healthy. All four are fixed, and the fixes were proven on a second live deployment before teardown. The cluster is **not** left running: see [DEPLOYMENT.md §8](DEPLOYMENT.md#8-security-posture-of-the-cloud-mode) before sharing a link at any future event, because the endpoint is plain HTTP and the key travels in the URL.
 
+**Live model rehearsal — 2026-09-16.** A question worth recording: *what is the MCP server actually calling?* The answer, until this date, was **nothing**. `assess_refund` had been falling back to its labelled offline assessment on every single run, because the request hardcoded `temperature=0.0` and the deployment only accepts the default. The fallback is deliberately graceful, so **14/14 kept passing and nothing surfaced it** — a good reminder that a well-behaved degraded path can hide a feature that never worked (defect 20). It now calls a real `gpt-5.6-sol` deployment: benign orders come back with model text and real token counts, in 4–7 seconds.
+
+The more interesting outcome was the injected order. Azure's **platform content filter refuses the prompt before the model ever sees it** — so the demo now reports that as its own outcome (`filtered: true`, `handled_by: platform content filter`) instead of burying it as an outage. That is a third defence layer, it lives outside this application *and* outside MCP, and it is still not the boundary: the forced refund is denied by the same rule either way. Worth one sentence on stage, no more.
+
+Also fixed on this date: orphaned processes could hold the demo ports while `start-all` health-checked the ghosts and reported everything healthy (defect 21 — recovery steps are in [RUNBOOK.md](RUNBOOK.md)). And the web UI was rescaled for a room rather than a laptop, with an **A− / A+** control in the header so the presenter can size the page to the back row before starting.
+
 **Retrospective** *(fill in after delivery)*
 
 | | |

@@ -18,7 +18,7 @@ This is the operational document: what to run, when to stop, and what to do when
 ### T-24 hours
 
 - [ ] `.\scripts\stop-all.ps1` then `.\scripts\start-all.ps1 -Reset`
-- [ ] `.\scripts\check.ps1` → must end with **`READY`** (164 tests, 14/14 scenarios)
+- [ ] `.\scripts\check.ps1` → must end with **`READY`** (188 tests, 14/14 scenarios)
 - [ ] Full rehearsal with a timer. Note your actual time at each stop-time.
 - [ ] `docs/CLIENT-APPROVAL-CHECKLIST.md` sections A–D if you are using a live client
 - [ ] Re-verify `docs/COMPATIBILITY-RECORD.md` §5. **Do not upgrade `mcp` inside 72 hours** unless something is broken.
@@ -127,6 +127,7 @@ Stop-times are **cumulative elapsed**. If you are past a segment's stop-time by 
 | **Code bookmark** | `tokens.py` audience check; `policy.py` R006 |
 | **Fallback** | Behind schedule? Run `wrong-audience` live and **read** the other two results from a prior `run-all` transcript. State that you are showing recorded output. Never skip one. |
 | **Say aloud (injection)** | *"Whatever the model decided doesn't matter. I'm forcing the call through the harness. This is a harness replay, not a fresh model attack — and the server still says no."* |
+| **If the filter fires (cloud mode)** | With `FOUNDRY_ENDPOINT` set, the evidence shows `assessment_was_blocked_by_content_filter: True` and `handled_by: platform content filter`. **Say it precisely:** the *platform* refused the prompt — not the model, and not this application. Then make the real point: *"That's a third layer, and it isn't mine. It's in the platform, not my code and not MCP. It's also still not the boundary — watch."* Run the forced call and show the identical denial. |
 | **Say aloud (deputy)** | *"Riley has the write scope. Riley is not confused. The server is the deputy, and it refuses to be confused on Riley's behalf."* |
 
 > This segment is **the promise of the talk**. Protect its five minutes. If you must steal time, steal it from Segment 3's code walkthrough.
@@ -184,6 +185,9 @@ Decide **before** you are under pressure.
 | Consent prompt does not reappear | No dialog on connect | Cached token. Do not debug on stage — use `docs/CLIENT-APPROVAL-CHECKLIST.md` §D after the talk. |
 | Foundry throttled or slow | > 3 s with no output | Offline path returns immediately and labels itself. Read the label aloud. |
 | Model refuses the injection | Model output differs from rehearsal | **Expected and fine.** The harness forces the call anyway. Say: *"the model's answer isn't the boundary."* |
+| Content filter blocks the assessment | `assessment_was_blocked_by_content_filter: True` | **Expected in cloud mode, and worth a sentence.** The platform refused the prompt — say *platform*, not *model*. Then force the call and show the identical denial. |
+| Services "healthy" but code changes do nothing | `start-all` says all healthy, yet behaviour is stale | Orphaned processes from an earlier run still hold 8800–8803, and `start-all` health-checked *those*. `stop-all` only knows its own PIDs. Recover: `Get-NetTCPConnection -LocalPort 8800 -State Listen` (repeat for 8801–8803), `Stop-Process -Id <pid> -Force` for each, then `start-all`. |
+| Text too small from the back of the room | Someone squints | Click **A+** in the page header, or press `+` / `-` / `0` on the page. The size persists across reloads. |
 | Total terminal loss | Obvious | Slides + `docs/COVERAGE-MATRIX.md`. Every claim has a named scenario and test; read the expected evidence column. |
 
 ---

@@ -44,6 +44,9 @@ param(
     [string]$RegistryName  = '',
     [int]$NodeCount        = 1,
     [string]$NodeSize      = 'Standard_D2s_v3',
+    [string]$FoundryEndpoint   = '',
+    [string]$FoundryDeployment = '',
+    [string]$FoundryApiKey     = '',
     [switch]$NoAccessKey,
     [switch]$Yes
 )
@@ -182,6 +185,27 @@ if (-not $NoAccessKey) {
 
 kubectl apply -f (Join-Path $demo 'k8s\configmap.yaml')
 if ($LASTEXITCODE -ne 0) { throw "kubectl apply failed" }
+
+# Optional: point the advisory tool at a real Foundry deployment. Without this
+# the tool returns a labelled offline assessment and every scenario still
+# passes -- the model is a demo layer, never a dependency.
+if ($FoundryEndpoint -and $FoundryDeployment) {
+    kubectl -n refund-demo set env configmap/refund-demo-config `
+        FOUNDRY_ENDPOINT=$FoundryEndpoint FOUNDRY_DEPLOYMENT=$FoundryDeployment | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "setting the Foundry config failed" }
+
+    if ($FoundryApiKey) {
+        kubectl -n refund-demo create secret generic refund-demo-foundry `
+            --from-literal=api-key=$FoundryApiKey --dry-run=client -o yaml | kubectl apply -f -
+        if ($LASTEXITCODE -ne 0) { throw "creating the Foundry secret failed" }
+        Write-Host "      Foundry: $FoundryDeployment (api key)" -ForegroundColor DarkGray
+    } else {
+        kubectl -n refund-demo delete secret refund-demo-foundry --ignore-not-found | Out-Null
+        Write-Host "      Foundry: $FoundryDeployment (no key -- needs workload identity)" -ForegroundColor DarkGray
+    }
+} elseif ($FoundryEndpoint -or $FoundryDeployment) {
+    throw "-FoundryEndpoint and -FoundryDeployment must be given together"
+}
 
 (Get-Content (Join-Path $demo 'k8s\deployment.yaml') -Raw).Replace('IMAGE_PLACEHOLDER', $image) |
     kubectl apply -f -

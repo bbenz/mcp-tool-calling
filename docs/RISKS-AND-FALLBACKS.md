@@ -198,6 +198,26 @@ Every realistic failure mode, how the presenter detects it **within seconds**, a
 | **Fallback** | Redeploy for a clean ledger and a fresh key — about 8 minutes, or under 2 if the cluster still exists. Or drop to mode 1, which needs no network at all. |
 | **Prevention** | Treat the link as **single-session and disposable**. For anything more exposed, add `loadBalancerSourceRanges` to `k8s/service.yaml`, make the Service internal and use `kubectl port-forward`, or front it with an HTTPS ingress. Full detail in [DEPLOYMENT.md §8](DEPLOYMENT.md#8-security-posture-of-the-cloud-mode). |
 
+### R20 · The live model is slow, throttled, or unavailable
+
+| | |
+| --- | --- |
+| **Likelihood** | Moderate — only if you configured `FOUNDRY_ENDPOINT` |
+| **Detection** | `assess_refund` takes longer than the 4–7 seconds you rehearsed, or the result says `live: false` |
+| **Why it happens** | A real network call to a shared deployment: throttling, a cold region, conference Wi-Fi, an expired `az login`. |
+| **Fallback** | **Nothing to do.** Every failure returns a labelled offline assessment and the scenario still passes. Read the label aloud — it says the model was not called — and carry on. Not one authorization claim in the talk depends on the model answering. |
+| **Prevention** | Leave Foundry unconfigured unless you specifically want to show the content filter. The offline path is the default for a reason, and all 14 scenarios pass without it. |
+
+### R21 · Saying "the model refused" when the platform refused
+
+| | |
+| --- | --- |
+| **Likelihood** | High, if you have not rehearsed with a live model |
+| **Detection** | The evidence says `assessment_was_blocked_by_content_filter: True` and `handled_by: platform content filter` |
+| **Why it happens** | Two different things can decline the injected order, and they are easy to conflate on stage. The **model** declining is one outcome; the **platform content filter** refusing to send the prompt at all is a different one, from a different vendor, at a different layer. Attributing one to the other in a talk about who enforces what is exactly the kind of imprecision the talk argues against. |
+| **Fallback** | If you misspeak, correct it in one sentence: *"To be precise — that was the platform filter, not the model."* It is a credibility gain, not a stumble. |
+| **Prevention** | Read the `handled_by` field on screen before you characterise it. The three outcomes are `filtered`, `live`, and offline; all three carry the identical `authorization_still_enforced_by` value, which is the line worth reading aloud. |
+
 ---
 
 These are not failure modes — they are things that must be said regardless of how well the demo runs. Omitting them under time pressure would be a more serious failure than any crash above.
@@ -208,7 +228,9 @@ These are not failure modes — they are things that must be said regardless of 
 | A cancelled request is **client-only evidence** — the server never saw it | Segment 4 |
 | The forced injection call is a **harness replay**, not a fresh model attack | Segment 5 |
 | Model refusal is **not** the security boundary | Segment 5 |
+| Content-filter refusal is the **platform's** control, not this app's and not MCP's — and also not the boundary | Segment 5, if it fires |
 | The audit log is a JSONL file — **not immutable, not tamper-proof** | Segment 6 |
-| Entra mode and the Azure deployment are **implemented but unexecuted** — no tenant or subscription was authorized | Q&A, if asked |
+| **Entra mode has never been executed** — no tenant was authorized, so the on-behalf-of path is written and reviewed, not proven | Q&A, if asked |
 | The **`aks-up.sh` bash deploy path has never driven a real deployment** — the verified cloud run used the PowerShell script | Q&A, if asked |
+| The **cluster has never actually called the model** — the live model and the content filter were proven from a laptop, not from inside a pod | Q&A, if asked |
 | One pod with five containers is a **demo shape, not a hosting recommendation** — the SQLite ledger makes one writer a hard constraint | Q&A, if asked |
