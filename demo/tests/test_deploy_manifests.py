@@ -383,28 +383,51 @@ def test_foundry_is_declared_but_empty_by_default(configmap):
     assert data["FOUNDRY_API_VERSION"]
 
 
-def test_no_foundry_credential_is_committed(configmap):
-    """A key in a ConfigMap is a key in plaintext, readable by every container."""
+def test_no_foundry_endpoint_or_credential_is_committed(configmap):
+    """Real values belong in the Secret, not a ConfigMap every container reads.
+
+    The key is the obvious one. The endpoint matters too: it names a resource
+    in someone's subscription, and there is no reason for the other four
+    containers to learn it.
+    """
     assert "FOUNDRY_API_KEY" not in configmap["data"]
+    assert configmap["data"]["FOUNDRY_ENDPOINT"] == ""
+    assert configmap["data"]["FOUNDRY_DEPLOYMENT"] == ""
 
 
-def test_only_the_mcp_server_receives_the_foundry_key(containers):
-    """assess_refund is the only caller, so nothing else gets the credential."""
+def test_only_the_mcp_server_receives_the_foundry_config(containers):
+    """assess_refund is the only caller, so nothing else mounts the Secret."""
     holders = [
         name
         for name, c in containers.items()
-        if any(e["name"] == "FOUNDRY_API_KEY" for e in c.get("env", []))
+        if any(
+            src.get("secretRef", {}).get("name") == "refund-demo-foundry"
+            for src in c.get("envFrom", [])
+        )
     ]
     assert holders == ["mcp-a"]
 
 
-def test_the_foundry_key_is_optional(containers):
+def test_the_foundry_secret_is_optional(containers):
     """No Secret must mean a labelled offline assessment, not a crash loop."""
     ref = next(
-        e for e in containers["mcp-a"]["env"] if e["name"] == "FOUNDRY_API_KEY"
-    )["valueFrom"]["secretKeyRef"]
+        src["secretRef"]
+        for src in containers["mcp-a"]["envFrom"]
+        if "secretRef" in src
+    )
     assert ref["optional"] is True
     assert ref["name"] == "refund-demo-foundry"
+
+
+def test_the_secret_wins_over_the_configmap_defaults(containers):
+    """Order matters in envFrom: the empty ConfigMap defaults must not win.
+
+    If the Secret were listed first, a deployment that supplied a real endpoint
+    would silently fall back to the offline path with nothing to show for it.
+    """
+    sources = containers["mcp-a"]["envFrom"]
+    names = [next(iter(src)) for src in sources]
+    assert names.index("configMapRef") < names.index("secretRef")
 
 
 def test_the_mcp_server_still_binds_loopback_after_gaining_its_own_env(containers):
@@ -422,3 +445,8 @@ def test_both_deploy_scripts_expose_the_same_foundry_flags(script):
     ) else ("--foundry-endpoint", "--foundry-deployment", "--foundry-api-key"):
         assert flag in text, f"{script} is missing {flag}"
     assert "refund-demo-foundry" in text
+    # The values must reach the cluster as a Secret, never by patching the
+    # ConfigMap -- which is the shortcut that put the endpoint in plaintext.
+    assert "set env configmap" not in text, f"{script} still writes Foundry config to the ConfigMap"
+    for key in ("FOUNDRY_ENDPOINT", "FOUNDRY_DEPLOYMENT", "FOUNDRY_API_KEY"):
+        assert f"--from-literal={key}=" in text, f"{script} does not put {key} in the Secret"

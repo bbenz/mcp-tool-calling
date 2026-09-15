@@ -232,5 +232,5 @@ These are not failure modes — they are things that must be said regardless of 
 | The audit log is a JSONL file — **not immutable, not tamper-proof** | Segment 6 |
 | **Entra mode has never been executed** — no tenant was authorized, so the on-behalf-of path is written and reviewed, not proven | Q&A, if asked |
 | The **`aks-up.sh` bash deploy path has never driven a real deployment** — the verified cloud run used the PowerShell script | Q&A, if asked |
-| The **cluster has never actually called the model** — the live model and the content filter were proven from a laptop, not from inside a pod | Q&A, if asked |
+| The cloud deployment authenticates to the model with an **API key, not workload identity** — the better answer is supported in code but was never run | Q&A, if asked |
 | One pod with five containers is a **demo shape, not a hosting recommendation** — the SQLite ledger makes one writer a hard constraint | Q&A, if asked |

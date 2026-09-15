@@ -6,7 +6,7 @@ Every promise in the published session description, mapped to the code that impl
 
 **Tiers:** **A** = always live · **B** = live if on time, else prepared evidence · **C** = compress first.
 
-Run everything: `.\scripts\check.ps1` (or `./scripts/check.sh`) → 206 automated tests + 14 scenarios.
+Run everything: `.\scripts\check.ps1` (or `./scripts/check.sh`) → 207 automated tests + 14 scenarios.
 
 ---
 

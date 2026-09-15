@@ -233,14 +233,22 @@ Pass `--no-access-key` / `-NoAccessKey` to leave the UI ungated. Only do that fo
     --foundry-deployment <deployment-name>
 ```
 
-Both settings go into the ConfigMap; only `mcp-a` receives them, because `assess_refund` is the only caller. Leave them off and the tool returns a labelled offline assessment, so the demo still runs with no model and no network.
+Both settings go into the `refund-demo-foundry` **Secret**, not the ConfigMap — including the endpoint and deployment name, which are not secrets in the cryptographic sense but do name a resource in someone's subscription. The ConfigMap is read by all five containers; this Secret is mounted by `mcp-a` alone, because `assess_refund` is the only caller. One object, one lifecycle, one blast radius. Leave the flags off and the tool returns a labelled offline assessment, so the demo still runs with no model and no network.
 
 Credentials, in order of preference:
 
-1. **Workload identity** (nothing to pass). The pod's managed identity needs the *Cognitive Services OpenAI User* role on the Foundry resource, and the cluster needs OIDC issuer + workload identity enabled. Not yet wired by `aks-up` — see §7.
-2. **`-FoundryApiKey` / `--foundry-api-key`**, which creates the `refund-demo-foundry` Secret. A static credential, so prefer option 1 for anything longer-lived than a conference.
+1. **Workload identity** (nothing to pass). The pod's managed identity needs the *Cognitive Services OpenAI User* role on the Foundry resource, and the cluster needs OIDC issuer + workload identity enabled. `aks-up` does not wire this, and it has never been run this way — see §7.
+2. **`-FoundryApiKey` / `--foundry-api-key`**, which puts the key in the same Secret. A static credential, so prefer option 1 for anything longer-lived than a conference. This is what the verified deployment uses.
+
+Getting the key, if the resource already exists:
+
+```powershell
+$key = az cognitiveservices account keys list --name <resource> --resource-group <rg> --query key1 -o tsv
+```
 
 What it buys on stage: running `prompt-injection` shows `assessment_was_blocked_by_content_filter: True` and `handled_by: platform content filter`. That is a control living in the **platform**, not in this app and not in MCP — and the forced refund is denied identically whether it fires or not.
+
+Verified in the running pod: `mcp-a` reports `live: true` with real token counts on a benign order, and it is the only container whose environment contains `FOUNDRY_API_KEY`.
 
 All fixtures are synthetic. There is no real customer, order, or credential anywhere in this deployment, and there must never be.
 
@@ -328,18 +336,19 @@ Said plainly, because a talk about authorization should not overclaim.
 
 **Verified by execution:**
 
-- Modes 1 and 2, in PowerShell and bash: 206 tests, 14 scenarios, `READY` from `check`.
+- Modes 1 and 2, in PowerShell and bash: 207 tests, 14 scenarios, `READY` from `check`.
 - The web API end to end against live services: health, scenario listing, a real run, ledger digest, audit tail, and `403` on reset.
 - **Mode 3 end to end.** The image builds, all five containers report healthy, and **all 14 scenarios pass inside Compose** with the ledger moving only on the scenario that is supposed to move it.
 - **Mode 4 end to end, twice.** A real AKS cluster was created, the image was built by ACR Tasks, the pod rolled out with 5/5 containers ready and zero restarts, and **all 14 scenarios passed against the public IP**. The second run proved the security hardening below.
 - The clean-ledger digest is **identical in all three environments** — laptop, Compose and AKS (`211597d92491…`) — and a full scenario run lands on `a24b01f92f67` on both the laptop and the cluster.
 - The access-key gate on a public address: `401` without a key, `200` with one, and `/health` deliberately exempt so the Kubernetes probes keep working.
-- **A live Foundry model behind `assess_refund`**, against a real `gpt-5.6-sol` deployment: a benign order returned model text with real token counts, and the injected order was refused by the platform content filter and reported as `filtered: true` rather than as an outage. All 14 scenarios still pass with it configured.
+- **A live Foundry model behind `assess_refund`, from inside the cluster.** The deployment in `bbenz_mcp_summit` calls a real `gpt-5.6-sol` deployment using an API key held in a Kubernetes Secret: a benign order returned model text with real token counts (~6.5 s), and the injected order was refused by the platform content filter and reported as `filtered: true` rather than as an outage. All 14 scenarios pass with it configured.
+- **Secret containment, checked by reading the environment of every container in the running pod.** Only `mcp-a` has `FOUNDRY_API_KEY`; the other four see the empty ConfigMap defaults and nothing else.
 - **The hardening in §8, proven against the live public endpoint:** deleting the Secret returns `503` on every route instead of serving anonymously, `/health` still answers, and `devidp` refuses connections on the pod IP (`curl: (7)`) while still answering on loopback.
 - `readOnlyRootFilesystem: true` **does** hold in practice — the pod ran with no restarts, including with `exec` probes.
 - Image layout: source lands at `/app/src`, `.local` resolves to `/app/.local`, `.venv` and `tests` are excluded, and the non-root user can write the state directory.
 - Compose file syntax via `docker compose config`; Dockerfile lint via `docker build --check` (no warnings).
-- Manifest structure and cross-file agreement, via 62 tests that fail if Compose, Kubernetes and the Dockerfile stop describing the same demo.
+- Manifest structure and cross-file agreement, via 63 tests that fail if Compose, Kubernetes and the Dockerfile stop describing the same demo.
 - Teardown behaviour on a non-existent resource group, in both shells, and identical registry-name derivation between them.
 
 **Not verified:**
@@ -348,7 +357,7 @@ Said plainly, because a talk about authorization should not overclaim.
 - **`demo/infra` Bicep has never been deployed.** It compiles; that is the whole claim. Note that this is a *separate* artifact from `k8s/` — the AKS path above does not use it.
 - **The bash deploy script has never driven a real deployment.** `aks-up.sh` is syntax-checked and mirrors the PowerShell logic command for command, but both verified runs were `aks-up.ps1`.
 - **There is no TLS.** The cloud mode serves plain HTTP, so the access key is readable by anyone on the network path. See §8.
-- **The Foundry wiring has only been proven from a laptop, not from inside the cluster.** The live model and the content filter were verified against the real endpoint using `DefaultAzureCredential`; the `-FoundryEndpoint` / `-FoundryDeployment` flags on `aks-up` pass the same two settings through a ConfigMap and are pinned by tests, but no cluster has yet called Foundry. In the pod, `DefaultAzureCredential` needs AKS workload identity configured against the Foundry resource — or pass `-FoundryApiKey` to use a key from a Secret instead.
+- **Workload identity has never been used.** The verified cloud run authenticates to Foundry with an API key in a Secret, because the account that built this holds *Foundry User* on the model resource and therefore cannot create role assignments on it. Key-free authentication is the better answer and the code already supports it — `DefaultAzureCredential` is what the laptop uses — but `aks-up` does not wire the federated credential, and nobody has run it that way.
 - **Nothing has been observed over more than a few hours of uptime**, or under more than one user at a time.
 
 ---

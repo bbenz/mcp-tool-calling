@@ -129,7 +129,7 @@ Recorded because each one would have produced a misleading demo.
 
 ### Verified on this machine
 
-- All 206 automated tests pass (`pytest tests/ -q`).
+- All 207 automated tests pass (`pytest tests/ -q`).
 - All 14 stage scenarios pass (`python -m refund_demo.scenarios run-all`).
 - Full protocol trace: 401 challenge → PRM → AS metadata → PKCE S256 → RFC 8707 resource indicator → audience-bound token → `tools/call`.
 - On-behalf-of exchange, delegated identity preservation, and upstream re-enforcement.
@@ -140,7 +140,7 @@ Recorded because each one would have produced a misleading demo.
 - **The clean-ledger digest is identical on the laptop, in Compose, and on AKS** (`211597d92491…`); a full scenario run lands on `a24b01f92f67` on both the laptop and the cluster.
 - **`readOnlyRootFilesystem: true` holds in practice** — no container restarted.
 - Image layout: source at `/app/src`, `.local` resolving to `/app/.local`, `.venv` and `tests` excluded, and the non-root user able to write the state directory.
-- Compose file syntax (`docker compose config`), Dockerfile lint (`docker build --check`, no warnings), and cross-file agreement between Compose, Kubernetes and the Dockerfile (62 tests).
+- Compose file syntax (`docker compose config`), Dockerfile lint (`docker build --check`, no warnings), and cross-file agreement between Compose, Kubernetes and the Dockerfile (63 tests).
 - Both teardown scripts on a non-existent resource group, and identical registry-name derivation between PowerShell and bash.
 
 ### NOT verified — state this plainly if asked
@@ -152,8 +152,10 @@ Recorded because each one would have produced a misleading demo.
 | **`aks-up.sh`** (bash deploy) | The verified deployment ran `aks-up.ps1` | Syntax-checked and command-for-command equivalent to the PowerShell version, but never driven a real deployment. |
 | **Copilot / VS Code MCP OAuth redirect URIs** | Could not be confirmed against a live client | `demo/identity/README.md` marks these as TODO. Confirm from the client's own error message during rehearsal. |
 | **Least-privilege Foundry RBAC role** | Not confirmed against live role definitions | `demo/infra/modules/foundry.bicep` documents the assumption. |
-| **Live Foundry inference** | Verified against a real deployment | `assess_refund` was run live against an Azure AI Services deployment (`gpt-5.6-sol`): a benign order returned model text with real token counts, and the injected order was rejected by the platform content filter. With no endpoint configured the tool returns a labelled offline assessment, so the demo still runs with the network off. |
-| **Platform content filter as a defence layer** | Verified live | Azure's content filter refused the injected order notes before the model generated anything. Reported as `filtered: true` and `handled_by: platform content filter`, not as an outage. The refund is still denied by the policy engine either way. |
+| **Live Foundry inference** | Verified against a real deployment, on the laptop **and in AKS** | `assess_refund` was run live against an Azure AI Services deployment (`gpt-5.6-sol`): a benign order returned model text with real token counts, and the injected order was rejected by the platform content filter. In the cluster the same call reported `live: true` in ~6.5 s using an API key from a Kubernetes Secret. With no endpoint configured the tool returns a labelled offline assessment, so the demo still runs with the network off. |
+| **Platform content filter as a defence layer** | Verified live, on the laptop and in AKS | Azure's content filter refused the injected order notes before the model generated anything. Reported as `filtered: true` and `handled_by: platform content filter`, not as an outage. The refund is still denied by the policy engine either way. |
+| **Foundry credentials confined to one container** | Verified by reading the live pod | All Foundry settings live in the `refund-demo-foundry` Secret, mounted only by `mcp-a`. Checked with `printenv` in each of the five running containers: only `mcp-a` has `FOUNDRY_API_KEY`, and the other four see the empty ConfigMap defaults. |
+| **Workload identity for Foundry** | **Not verified** | The cluster authenticates with an API key. The build account holds *Foundry User* on the model resource — enough for inference, not enough for `roleAssignments/write` — so a managed identity could not be granted access. `DefaultAzureCredential` is what the laptop uses and the code path is shared, but `aks-up` does not create the federated credential. |
 
 ---
 

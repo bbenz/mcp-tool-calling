@@ -164,20 +164,33 @@ kubectl apply -f "$DEMO/k8s/configmap.yaml"
 # Optional: point the advisory tool at a real Foundry deployment. Without this
 # the tool returns a labelled offline assessment and every scenario still
 # passes -- the model is a demo layer, never a dependency.
+#
+# All of it goes in a Secret rather than the ConfigMap, including the endpoint
+# and deployment name, which are not secrets in the cryptographic sense but do
+# name a resource in someone's subscription. The ConfigMap is read by all five
+# containers; this Secret is read by mcp-a alone, which is the only caller. One
+# object, one lifecycle, one blast radius.
 if [ -n "$FOUNDRY_ENDPOINT" ] && [ -n "$FOUNDRY_DEPLOYMENT" ]; then
-  kubectl -n refund-demo set env configmap/refund-demo-config \
-    "FOUNDRY_ENDPOINT=$FOUNDRY_ENDPOINT" "FOUNDRY_DEPLOYMENT=$FOUNDRY_DEPLOYMENT" >/dev/null
+  secret_args=(
+    --from-literal=FOUNDRY_ENDPOINT="$FOUNDRY_ENDPOINT"
+    --from-literal=FOUNDRY_DEPLOYMENT="$FOUNDRY_DEPLOYMENT"
+  )
   if [ -n "$FOUNDRY_API_KEY" ]; then
-    kubectl -n refund-demo create secret generic refund-demo-foundry \
-      --from-literal=api-key="$FOUNDRY_API_KEY" --dry-run=client -o yaml | kubectl apply -f -
-    echo "      Foundry: $FOUNDRY_DEPLOYMENT (api key)"
+    secret_args+=(--from-literal=FOUNDRY_API_KEY="$FOUNDRY_API_KEY")
+    how="api key"
   else
-    kubectl -n refund-demo delete secret refund-demo-foundry --ignore-not-found >/dev/null
-    echo "      Foundry: $FOUNDRY_DEPLOYMENT (no key -- needs workload identity)"
+    how="no key -- needs workload identity"
   fi
+  kubectl -n refund-demo create secret generic refund-demo-foundry "${secret_args[@]}" \
+    --dry-run=client -o yaml | kubectl apply -f -
+  echo "      Foundry: $FOUNDRY_DEPLOYMENT ($how)"
 elif [ -n "$FOUNDRY_ENDPOINT" ] || [ -n "$FOUNDRY_DEPLOYMENT" ]; then
   echo "--foundry-endpoint and --foundry-deployment must be given together" >&2
   exit 2
+else
+  # A leftover Secret from a previous deploy would silently re-enable the
+  # model on a run that did not ask for it.
+  kubectl -n refund-demo delete secret refund-demo-foundry --ignore-not-found >/dev/null
 fi
 
 sed "s|IMAGE_PLACEHOLDER|$IMAGE|g" "$DEMO/k8s/deployment.yaml" | kubectl apply -f -

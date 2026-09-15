@@ -109,20 +109,19 @@ spec:
         - name: mcp-a
           image: IMAGE_PLACEHOLDER
           command: ["python", "-m", "refund_demo.mcp_server.app"]
-          envFrom: [{configMapRef: {name: refund-demo-config}}]
+          # This is the only container that talks to Foundry, so it is the only
+          # one that can see the model config. The Secret is optional: with no
+          # Secret the advisory tool returns a labelled offline assessment and
+          # every other scenario is unaffected. It is listed after the ConfigMap
+          # so its values win over the empty defaults declared there.
+          envFrom:
+            - configMapRef: {name: refund-demo-config}
+            - secretRef: {name: refund-demo-foundry, optional: true}
           # Same loopback bind as the others, written out rather than aliased
-          # because this is the only container that talks to Foundry. The key
-          # is optional: with no Secret the advisory tool returns a labelled
-          # offline assessment and every other scenario is unaffected.
+          # because this container needs an env block of its own anyway.
           env:
             - name: BIND_HOST
               value: "127.0.0.1"
-            - name: FOUNDRY_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: refund-demo-foundry
-                  key: api-key
-                  optional: true
           ports: [{containerPort: 8801, name: mcp-a}]
           volumeMounts: *mounts
           securityContext: *hardening

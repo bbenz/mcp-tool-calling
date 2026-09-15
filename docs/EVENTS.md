@@ -40,6 +40,16 @@ The more interesting outcome was the injected order. Azure's **platform content 
 
 Also fixed on this date: orphaned processes could hold the demo ports while `start-all` health-checked the ghosts and reported everything healthy (defect 21 — recovery steps are in [RUNBOOK.md](RUNBOOK.md)). And the web UI was rescaled for a room rather than a laptop, with an **A− / A+** control in the header so the presenter can size the page to the back row before starting.
 
+**Cloud rehearsal with the model — 2026-09-15.** Mode 4 redeployed into `bbenz_mcp_summit`, this time with Foundry wired in, and **left running** at the presenter's request. Newly proven: the **cluster itself calls the model**. `mcp-a` returned `live: true` with real token counts in about 6.5 seconds on a benign order, and the platform content filter refused the injected one from inside the pod. Before this run the cloud model path was test-pinned but had never been executed.
+
+The model credentials are a Kubernetes **Secret** (`refund-demo-foundry`) carrying the endpoint, deployment name, and API key. Only `mcp-a` mounts it, which was checked the only way worth checking — by reading the environment of all five containers in the running pod. The other four see empty ConfigMap defaults. The endpoint moved out of the ConfigMap for this run: it is not a secret in the cryptographic sense, but it names a resource in a subscription and the other four containers have no reason to know it.
+
+An API key is the weaker of the two supported options, and it is what this deployment uses: the account has *Foundry User* on the model resource, which permits inference but not creating role assignments, so workload identity could not be granted. Worth saying plainly if anyone asks — the code supports key-free authentication and the laptop uses it, but no cluster has.
+
+14/14 against the public IP, with the clean and post-run ledger digests matching the laptop exactly (`211597d92491` → `a24b01f92f67`). **The cluster is still up.** Cost is roughly $0.10–0.12/hour; tear it down with `.\scripts\aks-down.ps1 -ResourceGroup bbenz_mcp_summit`. Everything in [R19](RISKS-AND-FALLBACKS.md) about plain HTTP applies for as long as it is running.
+
+Also delivered in this pass: every scenario on the web page now expands to explain what it sends, what to expect, and why it matters, with an **About this demo** panel above the list — because the page gets read without a presenter more often than with one.
+
 **Retrospective** *(fill in after delivery)*
 
 | | |

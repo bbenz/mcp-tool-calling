@@ -189,22 +189,31 @@ if ($LASTEXITCODE -ne 0) { throw "kubectl apply failed" }
 # Optional: point the advisory tool at a real Foundry deployment. Without this
 # the tool returns a labelled offline assessment and every scenario still
 # passes -- the model is a demo layer, never a dependency.
+#
+# All of it goes in a Secret rather than the ConfigMap, including the endpoint
+# and deployment name, which are not secrets in the cryptographic sense but do
+# name a resource in someone's subscription. The ConfigMap is read by all five
+# containers; this Secret is read by mcp-a alone, which is the only caller. One
+# object, one lifecycle, one blast radius.
 if ($FoundryEndpoint -and $FoundryDeployment) {
-    kubectl -n refund-demo set env configmap/refund-demo-config `
-        FOUNDRY_ENDPOINT=$FoundryEndpoint FOUNDRY_DEPLOYMENT=$FoundryDeployment | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "setting the Foundry config failed" }
+    $secretArgs = @(
+        "--from-literal=FOUNDRY_ENDPOINT=$FoundryEndpoint",
+        "--from-literal=FOUNDRY_DEPLOYMENT=$FoundryDeployment"
+    )
+    if ($FoundryApiKey) { $secretArgs += "--from-literal=FOUNDRY_API_KEY=$FoundryApiKey" }
 
-    if ($FoundryApiKey) {
-        kubectl -n refund-demo create secret generic refund-demo-foundry `
-            --from-literal=api-key=$FoundryApiKey --dry-run=client -o yaml | kubectl apply -f -
-        if ($LASTEXITCODE -ne 0) { throw "creating the Foundry secret failed" }
-        Write-Host "      Foundry: $FoundryDeployment (api key)" -ForegroundColor DarkGray
-    } else {
-        kubectl -n refund-demo delete secret refund-demo-foundry --ignore-not-found | Out-Null
-        Write-Host "      Foundry: $FoundryDeployment (no key -- needs workload identity)" -ForegroundColor DarkGray
-    }
+    kubectl -n refund-demo create secret generic refund-demo-foundry @secretArgs `
+        --dry-run=client -o yaml | kubectl apply -f -
+    if ($LASTEXITCODE -ne 0) { throw "creating the Foundry secret failed" }
+
+    $how = if ($FoundryApiKey) { "api key" } else { "no key -- needs workload identity" }
+    Write-Host "      Foundry: $FoundryDeployment ($how)" -ForegroundColor DarkGray
 } elseif ($FoundryEndpoint -or $FoundryDeployment) {
     throw "-FoundryEndpoint and -FoundryDeployment must be given together"
+} else {
+    # A leftover Secret from a previous deploy would silently re-enable the
+    # model on a run that did not ask for it.
+    kubectl -n refund-demo delete secret refund-demo-foundry --ignore-not-found | Out-Null
 }
 
 (Get-Content (Join-Path $demo 'k8s\deployment.yaml') -Raw).Replace('IMAGE_PLACEHOLDER', $image) |
