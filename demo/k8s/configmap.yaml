@@ -15,6 +15,12 @@ data:
   MCP_B_PUBLIC_URL: "http://localhost:8802"
   UPSTREAM_API_URL: "http://localhost:8803"
 
+  # No MCP_ALLOWED_HOSTS here on purpose. The MCP transport's DNS rebinding
+  # protection allows loopback Host headers out of the box, and inside a single
+  # pod every call is already loopback. Compose needs the override because
+  # there the Host header is a service name. Add entries here if these
+  # containers are ever split into separate pods.
+
   # devidp binds loopback by default, which is right on a laptop and wrong for
   # the container that has to answer the Service.
   BIND_HOST: "0.0.0.0"

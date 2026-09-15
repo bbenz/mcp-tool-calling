@@ -39,19 +39,27 @@ Tooling used for the optional deployment paths:
 | Azure CLI | 2.88.0 | `az version` |
 | kubectl | v1.36.1 | `kubectl version --client` |
 
-### The package CDN is blocked on this machine
+### The package CDN was blocked on this machine, then cleared
 
-`pypi.org` responds normally (HTTP 200), but `files.pythonhosted.org` — the CDN that serves the actual wheels — fails the TLS handshake:
+`pypi.org` responded normally (HTTP 200), but `files.pythonhosted.org` — the CDN that serves the actual wheels — failed the TLS handshake:
 
 ```
 curl: (35) schannel: ... SEC_E_ILLEGAL_MESSAGE
 pip: SSLError(1, '[SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ...')
 ```
 
-Reproduced identically from the host and from inside a `docker build`. The practical consequences shaped two decisions:
+Reproduced identically from the host and from inside a `docker build`. **It cleared a day later without any change on this machine**, and the image then built on the first attempt. That timing matters for the record: it was a network condition, not a repository defect, and it can return in a conference venue.
 
-1. **No new Python dependency could be added or verified.** The web UI is built on **Starlette**, which was already a dependency of the MCP SDK, rather than on FastAPI, which would have required an install that cannot happen here. Starlette is what FastAPI is built on; for a handful of JSON routes and one HTML page the difference is an import, and the demo gains nothing from a dependency it cannot verify.
-2. **The container image was never built, and the cloud path builds server-side.** `az acr build` runs in Azure, where PyPI is reachable, which is why the AKS scripts do not push an image from the laptop. See [DEPLOYMENT.md §5](DEPLOYMENT.md#5-when-the-image-build-cannot-reach-pypi) and risk R16.
+It still shaped one permanent decision and one temporary one:
+
+1. **Permanent: the web UI is built on Starlette, not FastAPI.** Starlette was already a dependency of the MCP SDK, so it needed no install at a moment when no install was possible. Starlette is what FastAPI is built on; for a handful of JSON routes and one HTML page the difference is an import. It stays as-is — it works, it is tested, and swapping it now would add a dependency for no gain.
+2. **Resolved: the container image is now built and exercised.** While the block was active the AKS scripts were written to build server-side with `az acr build`, which remains the right design — it keeps the cloud path independent of laptop egress. See [DEPLOYMENT.md §5](DEPLOYMENT.md#5-when-the-image-build-cannot-reach-pypi) and risk R16.
+
+Re-check before relying on Compose at an event:
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' https://files.pythonhosted.org/simple/   # 404 = reachable
+```
 
 ### Python was not present
 
@@ -104,6 +112,8 @@ Recorded because each one would have produced a misleading demo.
 | 9 | Reset deleted the local signing key | **Every call fails `invalid_token` after the T-5 reset.** The key regenerates, so `devidp` mints tokens with a new key while running services still serve and cache the old JWKS. Only a full restart recovers. | Reset keeps the key by default; `--new-key` is refused while `devidp` is listening. Pinned by `tests/test_reset.py` (R9b) |
 | 10 | Bash operators had no `scenario`/`audit` scripts, and every `.sh` hardcoded `.venv/bin/python` | The two most-used stage commands were PowerShell-only, and no `.sh` ran under Git Bash on Windows | Added `scenario.sh`, `audit.sh`, and `_common.sh`, which resolves `.venv/bin` or `.venv/Scripts` |
 | 11 | `scenario list` printed blank descriptions | The list of what the demo can show was unreadable — the claim lived in a `claim=` keyword argument, not in a docstring, so the listing had nothing to read | Introduced a canonical `CLAIMS` dict as the single source for both the listing and each result, pinned by a drift test |
+| 12 | `requirements.txt` pinned `pywin32==312` with no environment marker | **The container image could not be built at all** — `pip` stopped at `No matching distribution found for pywin32`, because it has no Linux build. The file was frozen on Windows, so the laptop never noticed | Marked `; sys_platform == "win32"`. `test_requirements_mark_windows_only_pins` fails on any unmarked Windows-only pin |
+| 13 | Both MCP servers called `streamable_http_app()` with no transport settings | **Every tool call failed with `421 Misdirected Request` in containers**, but only *after* a fully successful OAuth handshake — so it read as a token bug when it was a transport bug. The SDK auto-enables DNS rebinding protection for loopback servers and then allows only `localhost`-ish `Host` headers; under Compose the Host header is `mcp-a:8801` | Settings now build explicit `TransportSecuritySettings`. Protection stays **on**; `MCP_ALLOWED_HOSTS` extends the allowlist. Pinned by three tests |
 
 ---
 
@@ -111,14 +121,16 @@ Recorded because each one would have produced a misleading demo.
 
 ### Verified on this machine
 
-- All 136 automated tests pass (`pytest tests/ -q`).
+- All 141 automated tests pass (`pytest tests/ -q`).
 - All 14 stage scenarios pass (`python -m refund_demo.scenarios run-all`).
 - Full protocol trace: 401 challenge → PRM → AS metadata → PKCE S256 → RFC 8707 resource indicator → audience-bound token → `tools/call`.
 - On-behalf-of exchange, delegated identity preservation, and upstream re-enforcement.
 - All three adversarial checks, each with an unchanged ledger digest.
 - The web API end to end against live services: health, scenario listing, a real run, ledger digest, audit tail, and `403` on reset.
-- Image layout, via a structural container build: source at `/app/src`, `.local` resolving to `/app/.local`, `.venv` and `tests` excluded, and the non-root user able to write the state directory.
-- Compose file syntax (`docker compose config`) and cross-file agreement between Compose, Kubernetes and the Dockerfile (41 tests).
+- **The container image builds**, and **all 14 scenarios pass inside Docker Compose** with all five containers healthy.
+- **The clean-ledger digest is identical in Compose and on the laptop** (`211597d92491…`), so seeded data and fingerprinting agree across environments.
+- Image layout: source at `/app/src`, `.local` resolving to `/app/.local`, `.venv` and `tests` excluded, and the non-root user able to write the state directory.
+- Compose file syntax (`docker compose config`), Dockerfile lint (`docker build --check`, no warnings), and cross-file agreement between Compose, Kubernetes and the Dockerfile (46 tests).
 - Both teardown scripts on a non-existent resource group, and identical registry-name derivation between PowerShell and bash.
 
 ### NOT verified — state this plainly if asked
@@ -127,8 +139,8 @@ Recorded because each one would have produced a misleading demo.
 | --- | --- | --- |
 | **Microsoft Entra ID mode** (`AUTH_MODE=entra`) | No tenant access was authorized | The MSAL on-behalf-of path and real Entra discovery are **untested**. `AUTH_MODE=devidp` is the presentation default. |
 | **Azure deployment** (`demo/infra`) | Provisioning was not approved; nothing was deployed | Bicep compiles (`az bicep build`) but has never been applied. Treat first deploy as a two-hour task, not a five-minute one. |
-| **Container image build** | The wheel CDN is blocked on this machine (§1) | The `pip install` layer never ran. Everything around it was verified. Build it once on a network you control before relying on it. |
-| **AKS deployment** | No subscription was authorized | Manifests are schema-shaped and pinned by 41 tests; no rollout was observed. Rehearse it days ahead, never on the day (R17). |
+| **AKS deployment** | No subscription was authorized | Manifests are schema-shaped and pinned by 46 tests; no rollout was observed. The image and the application are now proven under Compose, which removes much of the risk but not the cluster-specific part. Rehearse it days ahead, never on the day (R17). |
+| **`readOnlyRootFilesystem: true`** | Compose does not set it, and no pod has run | If a container crashloops on AKS, relax this first. `/tmp` is an `emptyDir` and `PYTHONDONTWRITEBYTECODE=1` is set, so it *should* hold. |
 | **Copilot / VS Code MCP OAuth redirect URIs** | Could not be confirmed against a live client | `demo/identity/README.md` marks these as TODO. Confirm from the client's own error message during rehearsal. |
 | **Least-privilege Foundry RBAC role** | Not confirmed against live role definitions | `demo/infra/modules/foundry.bicep` documents the assumption. |
 | **Live Foundry inference** | No endpoint configured | `assess_refund` falls back to an offline assessment that is explicitly labelled `live: false` and prefixed `[OFFLINE ASSESSMENT - NO MODEL WAS CALLED]`. It can never be mistaken for live output. |

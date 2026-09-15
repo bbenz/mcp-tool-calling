@@ -221,11 +221,11 @@ Three deployment options beyond the operator scripts. **None of them are needed 
 
 Both wrappers wait for all five containers to report healthy before printing the URL. Note that inside the Compose network the services advertise each other by service name, so a host MCP client will not resolve them — use the script path for the live-client segment.
 
-> **The image has never been built here.** The machine this demo was built on cannot reach `files.pythonhosted.org`, so the `pip install` layer could not run. Everything around it was verified. See [DEPLOYMENT.md §5](DEPLOYMENT.md#5-when-the-image-build-cannot-reach-pypi) — it is a network condition, not a broken Dockerfile, and it has three workarounds.
+> **Verified end to end.** The image builds and all 14 scenarios pass inside Compose, with the clean-ledger digest matching the laptop exactly. If `docker compose build` fails on a TLS error from `files.pythonhosted.org`, that is your network, not the Dockerfile — see [DEPLOYMENT.md §5](DEPLOYMENT.md#5-when-the-image-build-cannot-reach-pypi), which has three workarounds.
 
 ### Azure Kubernetes Service — one pod, five containers
 
-> **Never deployed.** Manifests are schema-checked and pinned by 41 tests; no cluster was created, because no subscription was authorized.
+> **Never deployed.** Manifests are schema-checked and pinned by 46 tests; no cluster was created, because no subscription was authorized.
 
 | Task | PowerShell | Bash |
 | --- | --- | --- |
@@ -275,3 +275,7 @@ See `demo/infra/README.md` for parameters, outputs, cost considerations, and tea
 | `aks-up` fails at `az acr build` | Not signed in, or no subscription selected | `az login`, then `az account set --subscription <id>` |
 | AKS pod is `CrashLoopBackOff` | Most often a container cannot write its state directory | `kubectl -n refund-demo logs <pod> -c <container>`. The pod sets `fsGroup: 10001`, which is what makes the `emptyDir` writable by the non-root user |
 | AKS Service has no external IP | Load balancer still provisioning | `kubectl -n refund-demo get svc refund-demo-web -w`. Give it a few minutes |
+| Tool calls fail with `421 Misdirected Request` in containers | The MCP transport's DNS rebinding protection allows only loopback `Host` headers, and under Compose the Host header is the service name | Add the hostname to `MCP_ALLOWED_HOSTS` (Compose already sets `mcp-a:*,mcp-b:*`). Do **not** disable the protection. The OAuth handshake succeeding first makes this look like a token bug; it is not |
+| `docker compose build` fails on `No matching distribution found for pywin32` | `requirements.txt` is frozen on Windows and something Windows-only lost its marker | Append `; sys_platform == "win32"` to the pin. `test_requirements_mark_windows_only_pins` catches this before a build does |
+| Dozens of `httpx.ConnectError` failures from `pytest` | The Compose stack is holding ports 8800–8803, so the tests cannot bind their own services | `.\scripts\compose-down.ps1` first, then re-run. Nothing is broken |
+| `allowed-refund` fails on a **second** Compose run | The `demo-state` volume survives `compose-down`, so the order was already refunded — the demo is correctly refusing to double-spend | `.\scripts\compose-down.ps1 -Volumes` to wipe state, or run `.\scripts\reset.ps1` inside the stack. This is the same reason you reset before going on stage |

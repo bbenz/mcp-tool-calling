@@ -74,6 +74,13 @@ class Settings(BaseSettings):
     # on a laptop and is NOT fine on a public IP.
     web_access_key: str = ""
 
+    # Extra Host header values the MCP transport will accept, comma separated,
+    # e.g. "mcp-a:8801,mcp-a:*". The SDK turns on DNS rebinding protection and
+    # allows only loopback; behind a service name (Compose, an ingress) the Host
+    # header is something else and the transport answers 421 Misdirected
+    # Request. This extends the allowlist rather than disabling the check.
+    mcp_allowed_hosts: str = ""
+
     scope_read: str = "Refunds.Read"
     scope_write: str = "Refunds.Write"
 
@@ -138,6 +145,27 @@ class Settings(BaseSettings):
     def bind(self, default: str) -> str:
         """Interface to bind, honouring a BIND_HOST override."""
         return self.bind_host or default
+
+    def transport_security(self) -> "TransportSecuritySettings":
+        """DNS rebinding protection for the MCP transport.
+
+        Always enabled. The loopback entries keep a laptop run working; anything
+        in MCP_ALLOWED_HOSTS is added on top for container and cluster hostnames.
+        """
+        from mcp.server.transport_security import TransportSecuritySettings
+
+        hosts = ["127.0.0.1:*", "localhost:*", "[::1]:*"]
+        origins = ["http://127.0.0.1:*", "http://localhost:*", "http://[::1]:*"]
+        for extra in (h.strip() for h in self.mcp_allowed_hosts.split(",")):
+            if not extra or extra in hosts:
+                continue
+            hosts.append(extra)
+            origins.append(f"http://{extra}")
+        return TransportSecuritySettings(
+            enable_dns_rebinding_protection=True,
+            allowed_hosts=hosts,
+            allowed_origins=origins,
+        )
 
 
 @lru_cache(maxsize=1)

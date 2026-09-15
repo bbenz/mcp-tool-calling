@@ -30,6 +30,9 @@ x-common: &common
     MCP_A_PUBLIC_URL: http://mcp-a:8801
     MCP_B_PUBLIC_URL: http://mcp-b:8802
     UPSTREAM_API_URL: http://upstream:8803
+    # Requests arrive with the service name in the Host header, which the MCP
+    # transport's DNS rebinding protection rejects with 421 unless listed.
+    MCP_ALLOWED_HOSTS: "mcp-a:*,mcp-b:*"
   volumes:
     # Shared so every container sees one ledger, one audit log, one signing key.
     # The ledger is SQLite, which is also why nothing here scales past one

@@ -221,3 +221,64 @@ def test_dockerfile_exposes_every_service_port():
         if line.startswith("EXPOSE"):
             exposed.update(int(p) for p in line.split()[1:])
     assert exposed == {port for _, port in TOPOLOGY.values()}
+
+
+# --- regressions found by actually running the containers -----------------
+
+# Windows-only distributions that have no Linux wheel. Pinning one of these
+# without a marker builds fine on the laptop and fails the image build with
+# "No matching distribution found".
+WINDOWS_ONLY = ("pywin32", "pywinpty", "pyreadline3", "win32-setctime", "winkerberos")
+
+
+def test_requirements_mark_windows_only_pins():
+    """requirements.txt is frozen on Windows; Linux has to be able to read it."""
+    path = os.path.join(DEMO, "requirements.txt")
+    offenders = []
+    for line in open(path, encoding="utf-8"):
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        name = re.split(r"[=<>!~;\[]", line, 1)[0].strip().lower()
+        if name in WINDOWS_ONLY and "sys_platform" not in line:
+            offenders.append(line)
+    assert not offenders, f"needs a ; sys_platform == \"win32\" marker: {offenders}"
+
+
+def test_compose_allows_the_service_names_as_mcp_hosts(compose):
+    """The MCP transport answers 421 unless the Host header is allowlisted.
+
+    Inside Compose the Host header is the service name, not localhost.
+    """
+    allowed = compose["services"]["mcp-a"]["environment"]["MCP_ALLOWED_HOSTS"]
+    entries = {e.strip() for e in allowed.split(",")}
+    assert "mcp-a:*" in entries
+    assert "mcp-b:*" in entries
+
+
+def test_dns_rebinding_protection_stays_on_and_always_allows_loopback():
+    from refund_demo.config import Settings
+
+    settings = Settings(mcp_allowed_hosts="")
+    plain = settings.transport_security()
+    assert plain.enable_dns_rebinding_protection is True
+    assert plain.allowed_hosts == ["127.0.0.1:*", "localhost:*", "[::1]:*"]
+
+
+def test_extra_allowed_hosts_extend_rather_than_replace_loopback():
+    from refund_demo.config import Settings
+
+    extended = Settings(mcp_allowed_hosts="mcp-a:*, mcp-b:*, localhost:*").transport_security()
+    assert extended.enable_dns_rebinding_protection is True
+    # loopback survives, the extras are added, and nothing is duplicated
+    assert extended.allowed_hosts == ["127.0.0.1:*", "localhost:*", "[::1]:*", "mcp-a:*", "mcp-b:*"]
+    assert "http://mcp-a:*" in extended.allowed_origins
+
+
+def test_both_mcp_servers_apply_the_transport_security_settings():
+    """A bare streamable_http_app() silently allows only loopback Host headers."""
+    for module in ("mcp_server", "resource_b"):
+        path = os.path.join(DEMO, "src", "refund_demo", module, "app.py")
+        text = open(path, encoding="utf-8").read()
+        assert "streamable_http_app(transport_security=" in text, module
+

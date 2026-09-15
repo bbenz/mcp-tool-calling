@@ -357,7 +357,7 @@ async def health(request: Request) -> Response:
 def build_app():
     configure("mcp-server")
     ledger.initialize()
-    return mcp.streamable_http_app()
+    return mcp.streamable_http_app(transport_security=get_settings().transport_security())
 
 
 app = build_app()

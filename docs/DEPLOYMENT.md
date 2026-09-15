@@ -6,7 +6,7 @@ Four ways to run this demo. They exist for different rooms, not as alternatives 
 | --- | --- | --- | --- |
 | **1. Operator scripts** | **On stage. This is the rehearsed path.** | Python 3.12 | Verified |
 | **2. Scripts + web UI** | A browser view helps the back row read the verdicts | Python 3.12 | Verified |
-| **3. Docker Compose** | Handing the demo to someone who has Docker and nothing else | Docker Desktop | Manifests verified; image build needs PyPI egress (see §5) |
+| **3. Docker Compose** | Handing the demo to someone who has Docker and nothing else | Docker Desktop | Verified: built and all 14 scenarios pass in containers |
 | **4. Azure Kubernetes Service** | Remote audience, shared link, or the "what would this look like hosted" question | Azure subscription, `az`, `kubectl` | Manifests validated; **never deployed** |
 
 **Nothing in the 25-minute talk requires modes 3 or 4.** They are additions. Mode 1 is unchanged by their existence — same scripts, same commands, same output.
@@ -98,13 +98,21 @@ That is not a bug to work around — it is what happens when issuer, resource id
 
 All five containers share one named volume mounted at `/app/.local`: one ledger, one audit log, one signing key. `compose-down` keeps it so a restart resumes where you were; `-Volumes` / `--volumes` drops it, which is the container equivalent of resetting with a fresh key.
 
+Because the volume survives a restart, **running the full scenario set twice without wiping it will fail `allowed-refund` the second time** — the order has already been refunded and the demo is correctly refusing to double-spend. That is the ledger working, not a flake. Wipe state between full runs:
+
+```powershell
+.\scripts\compose-down.ps1 -Volumes ; .\scripts\compose-up.ps1
+```
+
+A clean ledger fingerprints as `211597d92491…` in Compose, which is byte-identical to a clean ledger on the laptop.
+
 The ledger is SQLite. **Nothing here scales past one writer**, which is why the Kubernetes deployment below is a single pod rather than something that looks more impressive and works less well.
 
 ---
 
 ## 4. Azure Kubernetes Service
 
-> **Never deployed.** The manifests are schema-checked and pinned by 41 tests; no cluster was created during the build, because no subscription was authorized for it. Budget real time the first time, and never do it for the first time on the day of a talk.
+> **Never deployed.** The manifests are schema-checked and pinned by 46 tests; no cluster was created during the build, because no subscription was authorized for it. Budget real time the first time, and never do it for the first time on the day of a talk.
 
 ### Prerequisites
 
@@ -198,7 +206,9 @@ SSLError(SSLError(1, '[SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] ...'))
   host='files.pythonhosted.org'
 ```
 
-This is the network, not the Dockerfile. Some corporate networks allow `pypi.org` (the index) but block `files.pythonhosted.org` (the CDN that serves the actual wheels), so dependency resolution begins and then dies on the first download. It was reproduced on the machine this demo was built on — from the host **and** inside the build, identically.
+This is the network, not the Dockerfile. Some corporate networks allow `pypi.org` (the index) but block `files.pythonhosted.org` (the CDN that serves the actual wheels), so dependency resolution begins and then dies on the first download.
+
+It was reproduced on the machine this demo was built on — from the host **and** inside the build, identically — and then it cleared on its own a day later, at which point the image built first time. Treat it as a property of the room you are in, not of the repository. Check it before you rely on mode 3 at an event, because it can come back.
 
 Three ways through it:
 
@@ -217,8 +227,10 @@ Confirming it is the network rather than your setup takes one command:
 
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' https://pypi.org/simple/              # 200
-curl -sS -o /dev/null -w '%{http_code}\n' https://files.pythonhosted.org/simple/ # fails at TLS
+curl -sS -o /dev/null -w '%{http_code}\n' https://files.pythonhosted.org/simple/ # 404 = reachable
 ```
+
+A `404` from the second URL is the **good** answer: that path does not exist, so the CDN is answering you. A TLS error is the bad one.
 
 ---
 
@@ -237,8 +249,17 @@ Every setting is an environment variable; containers set them through the Compos
 | `WEB_PORT` | `8080` | Web UI port |
 | `WEB_ALLOW_RESET` | `0` | Enables `POST /api/reset`. Still refused in `entra` mode |
 | `WEB_ACCESS_KEY` | *(unset)* | Shared secret for every route except `/health` |
+| `MCP_ALLOWED_HOSTS` | *(unset)* | Extra `Host` header values the MCP transport accepts, comma separated (`mcp-a:*,mcp-b:*`). Loopback is always allowed |
 
 Issuer and resource URLs must stay consistent with each other. If a token says `aud=http://mcp-a:8801` and Resource A believes it is `http://localhost:8801`, every call fails audience validation — correctly, and confusingly.
+
+### Two things that only break in containers
+
+Both were found by running the stack, not by reading it, and both now have tests.
+
+**`421 Misdirected Request` from an MCP server.** The MCP SDK turns on DNS rebinding protection whenever the server is built for a loopback host, and then accepts only `localhost` / `127.0.0.1` / `[::1]` in the `Host` header. On a laptop you never notice. Under Compose the Host header is the service name — `mcp-a:8801` — and every tool call is rejected *after* a completely successful OAuth handshake, which makes it look like a token problem when it is not. `MCP_ALLOWED_HOSTS` extends the allowlist; the protection stays on, because switching it off in a talk about authorization would be a poor look. A single pod on AKS does not need it: there, the containers really are talking over loopback.
+
+**The test suite fails while Compose is up.** The integration tests bind their own services on 8800–8803, so if the containers already hold those ports you get a wall of `httpx.ConnectError`. Run `scripts/compose-down.ps1` first. Nothing is wrong.
 
 ---
 
@@ -248,19 +269,21 @@ Said plainly, because a talk about authorization should not overclaim.
 
 **Verified by execution:**
 
-- Modes 1 and 2, in PowerShell and bash: 136 tests, 14 scenarios, `READY` from `check`.
+- Modes 1 and 2, in PowerShell and bash: 141 tests, 14 scenarios, `READY` from `check`.
 - The web API end to end against live services: health, scenario listing, a real run, ledger digest, audit tail, and `403` on reset.
+- **Mode 3 end to end.** The image builds, all five containers report healthy, and **all 14 scenarios pass inside Compose** with the ledger moving only on the scenario that is supposed to move it.
+- The clean-ledger digest is **identical** in Compose and on the laptop (`211597d92491…`), so the seeded data and the fingerprint agree across environments.
 - Image layout: source lands at `/app/src`, `.local` resolves to `/app/.local`, `.venv` and `tests` are excluded, and the non-root user can write the state directory.
-- Compose file syntax, via `docker compose config`.
-- Manifest structure and cross-file agreement, via 41 tests that fail if Compose, Kubernetes and the Dockerfile stop describing the same demo.
+- Compose file syntax via `docker compose config`; Dockerfile lint via `docker build --check` (no warnings).
+- Manifest structure and cross-file agreement, via 46 tests that fail if Compose, Kubernetes and the Dockerfile stop describing the same demo.
 - Teardown behaviour on a non-existent resource group, in both shells, and identical registry-name derivation between them.
 
 **Not verified:**
 
-- **The image has never been built.** The pip layer could not run on the build machine (§5). Everything around it was checked; the dependency install itself was not.
-- **The AKS deployment has never run.** No subscription was authorized. Manifests are schema-shaped and test-pinned, which is not the same as a green rollout.
+- **The AKS deployment has never run.** No subscription was authorized. Manifests are schema-shaped and test-pinned, which is not the same as a green rollout. The image build and the application itself are now proven under Compose, which removes most — not all — of the risk.
 - **`AUTH_MODE=entra` has never been executed**, in any mode.
 - **`demo/infra` Bicep has never been deployed.** It compiles; that is the whole claim.
+- **`readOnlyRootFilesystem: true` has never been exercised against a live pod.** Compose does not set it. If a container crashloops on AKS, that is the first thing to relax.
 
 ---
 

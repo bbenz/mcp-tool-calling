@@ -38,7 +38,10 @@ pytest-asyncio==1.4.0
 pytest==9.1.1
 python-dotenv==1.2.3
 python-multipart==0.0.32
-pywin32==312
+# pywin32 arrives via msal-extensions for the DPAPI-backed token cache and has
+# no Linux distribution, so it is marked rather than pinned unconditionally.
+# Without the marker the container build fails at "No matching distribution".
+pywin32==312 ; sys_platform == "win32"
 PyYAML==6.0.3
 referencing==0.37.0
 requests==2.34.2

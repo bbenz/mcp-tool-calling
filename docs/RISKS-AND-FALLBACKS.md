@@ -163,11 +163,11 @@ Every realistic failure mode, how the presenter detects it **within seconds**, a
 
 | | |
 | --- | --- |
-| **Likelihood** | **Confirmed on the build machine** · Medium on any corporate network |
+| **Likelihood** | **Seen once on the build machine, then cleared on its own** · Medium on any corporate network |
 | **Detection** | `docker compose build` dies on the `pip install` layer with `SSLV3_ALERT_HANDSHAKE_FAILURE` against `files.pythonhosted.org` — within about ten seconds |
-| **Why it happens** | Some networks allow `pypi.org` (the index) but block the CDN that serves the wheels. Resolution starts, then the first download dies at TLS. It is the network, not the Dockerfile — reproduced identically from the host and from inside the build. |
+| **Why it happens** | Some networks allow `pypi.org` (the index) but block the CDN that serves the wheels. Resolution starts, then the first download dies at TLS. It is the network, not the Dockerfile — reproduced identically from the host and from inside the build, and it stopped happening without any change to this repository. |
 | **Fallback** | **Do not debug this on the day.** Three ways past it, in order: deploy to AKS instead (`az acr build` runs server-side and is unaffected); pass `--build-arg PIP_INDEX_URL=<internal mirror>`; or drop to the script-based demo, which needs no image at all. |
-| **Prevention** | Build the image at home, on a network you control, before you need it. `curl https://files.pythonhosted.org/simple/` is a one-second check for whether the venue's network will let you. |
+| **Prevention** | Build the image at home, on a network you control, before you need it — and keep that image, because a venue network can reintroduce this. `curl -o /dev/null -w '%{http_code}' https://files.pythonhosted.org/simple/` is a one-second check: `404` means reachable, a TLS error means blocked. |
 
 ### R17 · AKS deployment not ready in time
 
@@ -200,5 +200,5 @@ These are not failure modes — they are things that must be said regardless of 
 | Model refusal is **not** the security boundary | Segment 5 |
 | The audit log is a JSONL file — **not immutable, not tamper-proof** | Segment 6 |
 | Entra mode and the Azure deployment are **implemented but unexecuted** — no tenant or subscription was authorized | Q&A, if asked |
-| The container image was **never built** and the AKS deployment was **never run** — the manifests are test-pinned, which is not the same thing | Q&A, if asked |
+| The **AKS deployment was never run** — the image and the whole demo are proven under Docker Compose, but no cluster was ever created | Q&A, if asked |
 | One pod with five containers is a **demo shape, not a hosting recommendation** — the SQLite ledger makes one writer a hard constraint | Q&A, if asked |
