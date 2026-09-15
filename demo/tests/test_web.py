@@ -10,9 +10,10 @@ from __future__ import annotations
 import pytest
 from starlette.testclient import TestClient
 
+from refund_demo.briefings import ABOUT, BRIEFINGS
 from refund_demo.config import get_settings
 from refund_demo.scenarios import CLAIMS, SCENARIOS
-from refund_demo.web.app import app
+from refund_demo.web.app import PAGE, app
 
 
 @pytest.fixture
@@ -147,3 +148,58 @@ def test_a_wrong_key_is_still_401_not_503(monkeypatch, fresh_settings, client):
     assert client.get("/api/scenarios?k=wrong").status_code == 401
     assert client.get("/api/scenarios?k=correct-horse").status_code == 200
     assert client.get("/api/scenarios", headers={"X-Demo-Key": "correct-horse"}).status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Briefings
+#
+# The page is read without narration at least as often as with it, so the
+# explanatory text is part of the demo rather than decoration around it. These
+# pin the two ways it could silently rot: a scenario added without a briefing,
+# and a briefing left behind for a scenario that no longer exists.
+# ---------------------------------------------------------------------------
+
+
+def test_every_scenario_can_explain_itself():
+    assert set(BRIEFINGS) == set(SCENARIOS)
+
+
+@pytest.mark.parametrize("name", sorted(SCENARIOS))
+def test_a_briefing_answers_all_three_questions(name):
+    # Separate floors: an expectation can be legitimately terse, an explanation
+    # of why it matters cannot. Both floors have already caught real thinness.
+    floors = {"sends": 60, "expects": 60, "why": 120}
+    brief = BRIEFINGS[name]
+    for field, floor in floors.items():
+        assert brief[field].strip(), f"{name} has no {field}"
+        assert len(brief[field]) > floor, f"{name}.{field} is too thin to be useful"
+
+
+def test_the_api_serves_the_briefing_with_each_scenario(client):
+    listed = client.get("/api/scenarios").json()
+    assert len(listed) == len(SCENARIOS)
+    for item in listed:
+        assert item["sends"] and item["expects"] and item["why"], item["name"]
+        assert item["claim"] == CLAIMS[item["name"]]
+
+
+def test_the_page_carries_the_about_expander_and_the_scenario_expanders(client):
+    body = client.get("/").text
+    assert "<!--ABOUT-->" not in body, "the About placeholder was never substituted"
+    assert "About this demo" in body
+    for key in ("what", "how", "watch", "not"):
+        # A distinctive fragment, so a rewrite that empties the text is caught.
+        assert ABOUT[key][:40] in body, key
+    assert "<details" in body and "toggleAll" in body
+
+
+def test_run_output_is_still_escaped_even_though_briefings_are_not():
+    """Briefings are authored here and contain markup on purpose.
+
+    Scenario *results* are not authored here -- they carry reason codes and
+    upstream text -- so show() must keep escaping them. If this ever inverts,
+    the page starts rendering whatever an error message contains.
+    """
+    page = PAGE
+    assert "esc(String(v))" in page, "result values are no longer escaped"
+    assert "${s.sends}" in page and "${esc(s.sends)}" not in page

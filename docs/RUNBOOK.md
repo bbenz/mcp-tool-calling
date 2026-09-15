@@ -18,7 +18,7 @@ This is the operational document: what to run, when to stop, and what to do when
 ### T-24 hours
 
 - [ ] `.\scripts\stop-all.ps1` then `.\scripts\start-all.ps1 -Reset`
-- [ ] `.\scripts\check.ps1` → must end with **`READY`** (188 tests, 14/14 scenarios)
+- [ ] `.\scripts\check.ps1` → must end with **`READY`** (206 tests, 14/14 scenarios)
 - [ ] Full rehearsal with a timer. Note your actual time at each stop-time.
 - [ ] `docs/CLIENT-APPROVAL-CHECKLIST.md` sections A–D if you are using a live client
 - [ ] Re-verify `docs/COMPATIBILITY-RECORD.md` §5. **Do not upgrade `mcp` inside 72 hours** unless something is broken.
@@ -28,6 +28,7 @@ This is the operational document: what to run, when to stop, and what to do when
 - [ ] Laptop on **mains power**; sleep, screensaver, and auto-lock **off**
 - [ ] Notifications off (Windows Focus Assist / Do Not Disturb), Slack/Teams/mail quit
 - [ ] Terminal font ≥ 20 pt, dark-on-light or high-contrast theme, window ≥ 120 columns
+- [ ] **If using the web UI:** size it for the back row with **A+** in the page header (or `+` / `-` / `0`), and leave every expander **collapsed** — they are for readers, not for the room. The size persists across reloads.
 - [ ] `.\scripts\start-all.ps1 -Reset` → `.\scripts\check.ps1` → **`READY`**
 - [ ] Open the four windows below and leave them open
 - [ ] **Airplane mode test:** disable Wi-Fi, run `.\scripts\scenario.ps1 allowed-refund`. It must pass. Re-enable Wi-Fi. This is your conference-network insurance.

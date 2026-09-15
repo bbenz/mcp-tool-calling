@@ -38,6 +38,7 @@ from starlette.responses import HTMLResponse, JSONResponse, Response
 from starlette.routing import Route
 
 from .. import audit, ledger, reset as reset_module
+from ..briefings import ABOUT, BRIEFINGS, Briefing
 from ..config import get_settings
 from ..scenarios import CLAIMS, SCENARIOS, run_one
 from ..telemetry import configure
@@ -49,7 +50,25 @@ _run_lock = anyio.Lock()
 
 
 def _scenario_summary() -> list[dict[str, str]]:
-    return [{"name": name, "claim": CLAIMS.get(name, "")} for name in SCENARIOS]
+    """Name, formal claim, and the three-part briefing the page expands.
+
+    A missing briefing yields empty strings rather than a KeyError: an
+    explanatory gap should not take the page down mid-talk.
+    """
+    blank: Briefing = {"sends": "", "expects": "", "why": ""}
+    out = []
+    for name in SCENARIOS:
+        brief = BRIEFINGS.get(name, blank)
+        out.append(
+            {
+                "name": name,
+                "claim": CLAIMS.get(name, ""),
+                "sends": brief["sends"],
+                "expects": brief["expects"],
+                "why": brief["why"],
+            }
+        )
+    return out
 
 
 def _gate(request: Request) -> Response | None:
@@ -83,6 +102,33 @@ def _gate(request: Request) -> Response | None:
     return JSONResponse({"error": "access key required"}, status_code=401)
 
 
+def _about_html() -> str:
+    """The top expander: what this is, before anyone clicks Run.
+
+    Built here rather than inlined in the template so the prose lives with the
+    scenario briefings, and so a reader looking for "what does this app claim
+    about itself" finds all of it in one file.
+    """
+    rows = [
+        ("What this is", ABOUT["what"]),
+        ("How it works", ABOUT["how"]),
+        ("What to watch", ABOUT["watch"]),
+        ("What it is not", ABOUT["not"]),
+    ]
+    body = "".join(f"<dt>{label}</dt><dd>{text}</dd>" for label, text in rows)
+    return (
+        '<details class="about">'
+        "<summary>"
+        '<span class="chev">&#9656;</span>'
+        '<span class="name">About this demo</span>'
+        '<span class="spacer"></span>'
+        '<span class="sub">read this first</span>'
+        "</summary>"
+        f'<dl class="brief">{body}</dl>'
+        "</details>"
+    )
+
+
 async def index(request: Request) -> Response:
     if (blocked := _gate(request)) is not None:
         # A 503 here means "no key configured on a public bind" -- an operator
@@ -91,7 +137,7 @@ async def index(request: Request) -> Response:
         if blocked.status_code == 503:
             return blocked
         return HTMLResponse(_LOCKED_HTML, status_code=401)
-    return HTMLResponse(PAGE)
+    return HTMLResponse(PAGE.replace("<!--ABOUT-->", _about_html()))
 
 
 async def health(request: Request) -> Response:
@@ -290,6 +336,33 @@ PAGE = """<!doctype html>
   .note{color:var(--dim);font-size:.9rem;margin-top:.8rem;line-height:1.5}
   .dot{display:inline-block;width:.55rem;height:.55rem;border-radius:50%;margin-right:.4rem}
   .up{background:var(--ok)} .down{background:var(--bad)}
+  /* Expanders. A room reads this page without narration as often as with it,
+     so every scenario can explain itself -- but collapsed by default, because
+     a wall of prose behind the presenter is worse than none. */
+  details{border-bottom:1px solid #21262d}
+  details:last-child{border-bottom:0}
+  summary{display:flex;align-items:center;gap:.6rem;padding:.55rem 0;cursor:pointer;
+          list-style:none}
+  summary::-webkit-details-marker{display:none}
+  .chev{color:var(--dim);font-size:.8rem;transition:transform .12s;width:.8rem;flex:none}
+  details[open] .chev{transform:rotate(90deg)}
+  summary:hover .name{color:var(--accent)}
+  .spacer{flex:1}
+  .brief{padding:.2rem 0 1rem 1.4rem;font-size:.95rem;line-height:1.6}
+  .brief dt{color:var(--accent);font-size:.8rem;text-transform:uppercase;
+            letter-spacing:.06em;margin-top:.7rem}
+  .brief dt:first-child{margin-top:0}
+  .brief dd{margin:.15rem 0 0;color:#c9d1d9}
+  .brief code{background:#0b0f14;border:1px solid var(--line);border-radius:4px;
+              padding:.05rem .3rem;font-size:.88rem;color:var(--warn);white-space:nowrap}
+  .brief em{color:var(--fg);font-style:italic}
+  .brief strong{color:var(--fg)}
+  .about{background:var(--panel);border:1px solid var(--line);border-radius:8px;
+         padding:.6rem 1rem;grid-column:1/-1;border-bottom:1px solid var(--line)}
+  .about > summary{padding:.5rem 0}
+  .about .name{font-size:1.15rem;color:var(--accent);text-transform:uppercase;
+               letter-spacing:.06em}
+  .about .brief{max-width:80ch}
 </style>
 <header>
   <h1>Who Can Call This MCP Tool?</h1>
@@ -302,11 +375,13 @@ PAGE = """<!doctype html>
   </span>
 </header>
 <main>
+  <!--ABOUT-->
   <section>
     <h2>Scenarios</h2>
     <div class="toolbar">
       <button onclick="runAll()" id="runall">Run all 14</button>
       <button onclick="refreshLedger()">Refresh ledger</button>
+      <button onclick="toggleAll()" id="expandall">Expand all</button>
     </div>
     <div id="list"></div>
     <p class="note">Every verdict here is produced by the MCP server, the upstream API, or the
@@ -367,14 +442,33 @@ document.addEventListener('keydown', e => {
 async function boot(){
   scenarios = await (await fetch(q('/api/scenarios'))).json();
   $('list').innerHTML = scenarios.map(s => `
-    <div class="row">
-      <span class="name" title="${esc(s.claim)}">${esc(s.name)}</span>
-      <span>
+    <details id="d-${esc(s.name)}">
+      <summary>
+        <span class="chev">&#9656;</span>
+        <span class="name">${esc(s.name)}</span>
+        <span class="spacer"></span>
         <span id="b-${esc(s.name)}"></span>
-        <button onclick="run('${esc(s.name)}')" id="r-${esc(s.name)}">Run</button>
-      </span>
-    </div>`).join('');
+        <button id="r-${esc(s.name)}"
+                onclick="event.preventDefault();event.stopPropagation();run('${esc(s.name)}')">Run</button>
+      </summary>
+      <dl class="brief">
+        <dt>Sends</dt><dd>${s.sends}</dd>
+        <dt>Expects</dt><dd>${s.expects}</dd>
+        <dt>Why it matters</dt><dd>${s.why}</dd>
+        <dt>Claim under test</dt><dd>${esc(s.claim)}</dd>
+      </dl>
+    </details>`).join('');
   refreshLedger(); services();
+}
+
+// The briefings are authored server-side and contain intentional markup, so
+// they are inserted as HTML. Everything that originates from a scenario *run*
+// stays escaped -- see show().
+function toggleAll(){
+  const b = $('expandall');
+  const open = b.textContent === 'Expand all';
+  scenarios.forEach(s => { $('d-'+s.name).open = open; });
+  b.textContent = open ? 'Collapse all' : 'Expand all';
 }
 
 async function run(name){

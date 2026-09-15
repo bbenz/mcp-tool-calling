@@ -13,7 +13,7 @@ Everything here runs locally in about ten minutes, with no Azure subscription an
 cd demo
 .\scripts\bootstrap.ps1
 .\scripts\start-all.ps1 -Reset
-.\scripts\check.ps1          # 188 tests + 14 scenarios -> READY
+.\scripts\check.ps1          # 206 tests + 14 scenarios -> READY
 ```
 
 **Bash** (Git Bash on Windows, Linux, macOS, WSL):
@@ -23,7 +23,7 @@ cd demo
 chmod +x scripts/*.sh        # only if your clone lost the executable bit
 ./scripts/bootstrap.sh
 ./scripts/start-all.sh --reset
-./scripts/check.sh           # 188 tests + 14 scenarios -> READY
+./scripts/check.sh           # 206 tests + 14 scenarios -> READY
 ```
 
 Every command must be run from the `demo/` directory. A `.ps1` cannot be run by bash and a `.sh` cannot be run by PowerShell — use the twin for the shell you are in. WSL needs its own `bootstrap.sh`, because a Windows `.venv` will not load on Linux; see [SETUP.md](docs/SETUP.md#choosing-a-shell-and-a-note-on-wsl).
@@ -135,7 +135,7 @@ Every scenario prints the ledger digest **before and after**, so "nothing happen
 | [EVENTS.md](docs/EVENTS.md) | Where this demo has been delivered, and how to reuse it |
 | [RUNBOOK.md](docs/RUNBOOK.md) | Presenter: timed schedule, tiers, stop-times, recovery |
 | [ONSTAGE-SCRIPT.md](docs/ONSTAGE-SCRIPT.md) | Presenter: literal prompts and narration |
-| [RISKS-AND-FALLBACKS.md](docs/RISKS-AND-FALLBACKS.md) | 19 failure modes, detection, prepared fallback |
+| [RISKS-AND-FALLBACKS.md](docs/RISKS-AND-FALLBACKS.md) | 21 failure modes, detection, prepared fallback |
 | [COMPATIBILITY-RECORD.md](docs/COMPATIBILITY-RECORD.md) | Verified versions, SDK API facts, defects found |
 | [CLIENT-APPROVAL-CHECKLIST.md](docs/CLIENT-APPROVAL-CHECKLIST.md) | Manual checks no test can prove |
 | [APPENDIX.md](docs/APPENDIX.md) | Sequence diagrams, sanitized audit records, KQL, design trade-offs, sources |
@@ -157,9 +157,10 @@ demo/
     upstream_api/        # refund API  :8803 -- re-enforces everything
     devidp/              # local OAuth AS :8800 -- real RS256/PKCE/RFC 8707
     web/                 # browser view :8080 -- reports decisions, makes none
+    briefings.py         # what each scenario sends, expects, and why
     client.py            # OAuth client + protocol trace
     scenarios.py         # 14 named stage scenarios
-  tests/                 # 188 tests
+  tests/                 # 206 tests
   scripts/               # PowerShell + bash operator commands
   docker/                # Dockerfile + Compose -- five containers, one image
   k8s/                   # AKS manifests -- one pod, five containers

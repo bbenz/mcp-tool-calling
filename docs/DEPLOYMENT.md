@@ -46,6 +46,14 @@ Then open <http://localhost:8080>.
 
 The page shows the 14 scenarios with the claim each one makes, a PASS/FAIL badge, the full protocol trace for the selected run, the live ledger digest, and the audit tail. It is a single self-contained HTML document: no CDN, no build step, no external requests. A test asserts that, because a demo about trust boundaries should not fetch a script from someone else's CDN in front of an audience.
 
+### The expanders
+
+Every scenario row expands to a short briefing: **what it sends**, **what to expect back**, and **why that matters** — plus the formal claim under test. There is an **About this demo** expander above the list covering what the app is, how it works, what to watch, and what it is not.
+
+They exist because the page is read without narration at least as often as with it — over a shoulder, on a phone, or from a link after the talk. All of them start collapsed, because a wall of prose behind a presenter is worse than none; **Expand all** opens the lot for someone reading alone.
+
+The prose lives in `demo/src/refund_demo/briefings.py`, deliberately apart from `CLAIMS` in `scenarios.py`. `CLAIMS` is load-bearing — the scripts print it and the tests assert against it — and nobody should be tempted to soften a claim to make it read better on a slide. Tests pin that the two sets stay in step, that no field is left thin, and that scenario *results* are still HTML-escaped even though the briefings are intentionally not.
+
 ### What the UI deliberately will not do
 
 - **Reset is off.** `POST /api/reset` returns `403` unless `WEB_ALLOW_RESET=1`, and it is still refused outright in `AUTH_MODE=entra`. Reset mutates the ledger; it stays an operator action.
@@ -320,7 +328,7 @@ Said plainly, because a talk about authorization should not overclaim.
 
 **Verified by execution:**
 
-- Modes 1 and 2, in PowerShell and bash: 188 tests, 14 scenarios, `READY` from `check`.
+- Modes 1 and 2, in PowerShell and bash: 206 tests, 14 scenarios, `READY` from `check`.
 - The web API end to end against live services: health, scenario listing, a real run, ledger digest, audit tail, and `403` on reset.
 - **Mode 3 end to end.** The image builds, all five containers report healthy, and **all 14 scenarios pass inside Compose** with the ledger moving only on the scenario that is supposed to move it.
 - **Mode 4 end to end, twice.** A real AKS cluster was created, the image was built by ACR Tasks, the pod rolled out with 5/5 containers ready and zero restarts, and **all 14 scenarios passed against the public IP**. The second run proved the security hardening below.

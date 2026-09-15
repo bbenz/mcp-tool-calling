@@ -129,7 +129,7 @@ Recorded because each one would have produced a misleading demo.
 
 ### Verified on this machine
 
-- All 188 automated tests pass (`pytest tests/ -q`).
+- All 206 automated tests pass (`pytest tests/ -q`).
 - All 14 stage scenarios pass (`python -m refund_demo.scenarios run-all`).
 - Full protocol trace: 401 challenge → PRM → AS metadata → PKCE S256 → RFC 8707 resource indicator → audience-bound token → `tools/call`.
 - On-behalf-of exchange, delegated identity preservation, and upstream re-enforcement.
