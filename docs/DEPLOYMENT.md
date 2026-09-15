@@ -7,7 +7,7 @@ Four ways to run this demo. They exist for different rooms, not as alternatives 
 | **1. Operator scripts** | **On stage. This is the rehearsed path.** | Python 3.12 | Verified |
 | **2. Scripts + web UI** | A browser view helps the back row read the verdicts | Python 3.12 | Verified |
 | **3. Docker Compose** | Handing the demo to someone who has Docker and nothing else | Docker Desktop | Verified: built and all 14 scenarios pass in containers |
-| **4. Azure Kubernetes Service** | Remote audience, shared link, or the "what would this look like hosted" question | Azure subscription, `az`, `kubectl` | Manifests validated; **never deployed** |
+| **4. Azure Kubernetes Service** | Remote audience, shared link, or the "what would this look like hosted" question | Azure subscription, `az`, `kubectl` | Verified: deployed, and all 14 scenarios pass against the public IP |
 
 **Nothing in the 25-minute talk requires modes 3 or 4.** They are additions. Mode 1 is unchanged by their existence — same scripts, same commands, same output.
 
@@ -112,7 +112,9 @@ The ledger is SQLite. **Nothing here scales past one writer**, which is why the 
 
 ## 4. Azure Kubernetes Service
 
-> **Never deployed.** The manifests are schema-checked and pinned by 46 tests; no cluster was created during the build, because no subscription was authorized for it. Budget real time the first time, and never do it for the first time on the day of a talk.
+> **Deployed and verified.** A real cluster was created in `eastus`, the image was built by ACR Tasks, the pod rolled out first time with all five containers ready, and **all 14 scenarios passed against the public IP** — with a post-run ledger digest of `a24b01f92f67`, identical to the laptop. Budget real time for a *first* run anyway: cluster creation alone takes several minutes, and you should never do it for the first time on the day of a talk.
+>
+> Observed timings on that run: resource group and registry seconds, ACR build ~2 minutes, `az aks create` ~4 minutes, rollout under a minute, load-balancer IP ~30 seconds.
 
 ### Prerequisites
 
@@ -133,6 +135,32 @@ The ledger is SQLite. **Nothing here scales past one writer**, which is why the 
 The script prints the subscription, region, registry, cluster and image tag, warns that this creates billable resources, and waits for confirmation. Then, in order: resource group → container registry → `az acr build` → AKS cluster → `az aks get-credentials` → apply `k8s/` → wait for rollout → print the public URL.
 
 Repeat runs are idempotent: existing resource group, registry and cluster are reused, and only a fresh image tag and a rolling replacement are applied.
+
+### If `az acr build` dies with a Unicode error
+
+On a Windows console, `az acr build`'s log streamer can crash with `UnicodeEncodeError: 'charmap' codec can't encode …`. **The image has almost certainly been built and pushed already** — only the client-side log printer died. The script passes `--no-logs` to avoid this, but if you run the command by hand:
+
+```powershell
+az acr task list-runs --registry <registry> --top 1 -o table   # look for Succeeded
+az acr task logs --registry <registry> --run-id <id>
+```
+
+`PYTHONIOENCODING=utf-8` does **not** fix it; colorama wraps the console handle regardless.
+
+### What it costs
+
+Roughly **$0.10–0.12 per hour** while it is up: one `Standard_D2s_v3` node (~$70/month), a Basic registry (~$5/month), and a load-balancer public IP. The AKS control plane is free tier. Leaving it running for a week costs more than the talk is worth — see R18 and tear it down.
+
+### Resetting the ledger between rehearsals
+
+`WEB_ALLOW_RESET` is `0` in the cloud, deliberately. The state directory is an `emptyDir`, so restarting the pod is the reset:
+
+```powershell
+kubectl -n refund-demo rollout restart deploy/refund-demo
+kubectl -n refund-demo rollout status deploy/refund-demo
+```
+
+Give it a few seconds after `rollout status` returns before probing — the pod reports ready slightly before it is answering.
 
 ### The shape of the deployment, and why
 
@@ -269,21 +297,24 @@ Said plainly, because a talk about authorization should not overclaim.
 
 **Verified by execution:**
 
-- Modes 1 and 2, in PowerShell and bash: 141 tests, 14 scenarios, `READY` from `check`.
+- Modes 1 and 2, in PowerShell and bash: 143 tests, 14 scenarios, `READY` from `check`.
 - The web API end to end against live services: health, scenario listing, a real run, ledger digest, audit tail, and `403` on reset.
 - **Mode 3 end to end.** The image builds, all five containers report healthy, and **all 14 scenarios pass inside Compose** with the ledger moving only on the scenario that is supposed to move it.
-- The clean-ledger digest is **identical** in Compose and on the laptop (`211597d92491…`), so the seeded data and the fingerprint agree across environments.
+- **Mode 4 end to end.** A real AKS cluster was created, the image was built by ACR Tasks, the pod rolled out with 5/5 containers ready and zero restarts, and **all 14 scenarios passed against the public IP**.
+- The clean-ledger digest is **identical in all three environments** — laptop, Compose and AKS (`211597d92491…`) — and a full scenario run lands on `a24b01f92f67` on both the laptop and the cluster.
+- The access-key gate on a public address: `401` without a key, `200` with one, and `/health` deliberately exempt so the Kubernetes probes keep working.
+- `readOnlyRootFilesystem: true` **does** hold in practice — the pod ran with no restarts.
 - Image layout: source lands at `/app/src`, `.local` resolves to `/app/.local`, `.venv` and `tests` are excluded, and the non-root user can write the state directory.
 - Compose file syntax via `docker compose config`; Dockerfile lint via `docker build --check` (no warnings).
-- Manifest structure and cross-file agreement, via 46 tests that fail if Compose, Kubernetes and the Dockerfile stop describing the same demo.
+- Manifest structure and cross-file agreement, via 48 tests that fail if Compose, Kubernetes and the Dockerfile stop describing the same demo.
 - Teardown behaviour on a non-existent resource group, in both shells, and identical registry-name derivation between them.
 
 **Not verified:**
 
-- **The AKS deployment has never run.** No subscription was authorized. Manifests are schema-shaped and test-pinned, which is not the same as a green rollout. The image build and the application itself are now proven under Compose, which removes most — not all — of the risk.
 - **`AUTH_MODE=entra` has never been executed**, in any mode.
-- **`demo/infra` Bicep has never been deployed.** It compiles; that is the whole claim.
-- **`readOnlyRootFilesystem: true` has never been exercised against a live pod.** Compose does not set it. If a container crashloops on AKS, that is the first thing to relax.
+- **`demo/infra` Bicep has never been deployed.** It compiles; that is the whole claim. Note that this is a *separate* artifact from `k8s/` — the AKS path above does not use it.
+- **The bash deploy script has never driven a real deployment.** `aks-up.sh` is syntax-checked and mirrors the PowerShell logic command for command, but the verified run was `aks-up.ps1`.
+- **Nothing has been observed over more than a few hours of uptime**, or under more than one user at a time.
 
 ---
 

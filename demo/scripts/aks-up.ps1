@@ -51,12 +51,22 @@ param(
 $ErrorActionPreference = 'Stop'
 $demo = Split-Path -Parent $PSScriptRoot
 
+# az is a Python application. On a Windows console its stdout encoder defaults
+# to cp1252, and `az acr build` streams the build log through it -- so a single
+# non-cp1252 character anywhere in pip's output kills the command with
+# UnicodeEncodeError *after* the image has already been built and pushed.
+$env:PYTHONIOENCODING = 'utf-8'
+
 function Invoke-Az {
-    param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Args)
-    $out = & az @Args 2>&1
+    # Takes one array, deliberately. With ValueFromRemainingArguments,
+    # PowerShell still tries to bind anything that looks like a parameter name,
+    # and "-o none" dies on "the parameter name 'o' is ambiguous" against
+    # -OutVariable / -OutBuffer before the function body ever runs.
+    param([Parameter(Mandatory = $true)][string[]]$AzArgs)
+    $out = & az @AzArgs 2>&1
     if ($LASTEXITCODE -ne 0) {
         $out | ForEach-Object { Write-Host $_ }
-        throw "az $($Args -join ' ') failed with exit code $LASTEXITCODE"
+        throw "az $($AzArgs -join ' ') failed with exit code $LASTEXITCODE"
     }
     return $out
 }
@@ -100,37 +110,57 @@ if (-not $Yes) {
 }
 
 Write-Host "[1/6] resource group ..." -ForegroundColor Cyan
-Invoke-Az group create --name $ResourceGroup --location $Location --tags purpose=conference-demo data=synthetic -o none
+Invoke-Az @('group', 'create', '--name', $ResourceGroup, '--location', $Location,
+            '--tags', 'purpose=conference-demo', 'data=synthetic', '-o', 'none')
 
 Write-Host "[2/6] container registry ..." -ForegroundColor Cyan
 & az acr show --name $RegistryName --resource-group $ResourceGroup -o none 2>$null
 $acrExists = ($LASTEXITCODE -eq 0)
 if (-not $acrExists) {
-    Invoke-Az acr create --name $RegistryName --resource-group $ResourceGroup --sku Basic --location $Location -o none
+    Invoke-Az @('acr', 'create', '--name', $RegistryName, '--resource-group', $ResourceGroup,
+                '--sku', 'Basic', '--location', $Location, '-o', 'none')
 }
 
 Write-Host "[3/6] building image in ACR (this is where the pip install happens) ..." -ForegroundColor Cyan
 # Built server-side on purpose: ACR Tasks can reach PyPI even when the laptop
 # cannot, and the build machine matches the cluster architecture.
-Invoke-Az acr build --registry $RegistryName --image "refund-demo:$tag" --file docker/Dockerfile $demo -o none
+#
+# --no-logs is not cosmetic. Streaming the build log routes it through
+# colorama, which writes to the Windows console in cp1252 and dies with
+# UnicodeEncodeError on the first character it cannot map -- *after* the image
+# has been built and pushed. The command still waits for the run to finish and
+# still fails loudly if the build fails; you just have to ask for the log.
+try {
+    Invoke-Az @('acr', 'build', '--registry', $RegistryName, '--image', "refund-demo:$tag",
+                '--file', 'docker/Dockerfile', $demo, '--no-logs', '-o', 'none')
+} catch {
+    Write-Host ""
+    Write-Host "The image build failed. Fetch the log with:" -ForegroundColor Red
+    Write-Host "  az acr task list-runs --registry $RegistryName --top 1 -o table"
+    Write-Host "  az acr task logs --registry $RegistryName --run-id <runId>"
+    throw
+}
 
-$loginServer = (Invoke-Az acr show --name $RegistryName --resource-group $ResourceGroup --query loginServer -o tsv).Trim()
+$loginServer = (Invoke-Az @('acr', 'show', '--name', $RegistryName, '--resource-group', $ResourceGroup,
+                            '--query', 'loginServer', '-o', 'tsv')).Trim()
 $image = "$loginServer/refund-demo:$tag"
 
 Write-Host "[4/6] AKS cluster (first run takes several minutes) ..." -ForegroundColor Cyan
 & az aks show --name $ClusterName --resource-group $ResourceGroup -o none 2>$null
 $aksExists = ($LASTEXITCODE -eq 0)
 if (-not $aksExists) {
-    Invoke-Az aks create --name $ClusterName --resource-group $ResourceGroup `
-        --node-count $NodeCount --node-vm-size $NodeSize `
-        --enable-managed-identity --attach-acr $RegistryName `
-        --network-plugin azure --network-plugin-mode overlay `
-        --tier free --generate-ssh-keys -o none
+    Invoke-Az @('aks', 'create', '--name', $ClusterName, '--resource-group', $ResourceGroup,
+                '--node-count', "$NodeCount", '--node-vm-size', $NodeSize,
+                '--enable-managed-identity', '--attach-acr', $RegistryName,
+                '--network-plugin', 'azure', '--network-plugin-mode', 'overlay',
+                '--tier', 'free', '--generate-ssh-keys', '-o', 'none')
 } else {
-    Invoke-Az aks update --name $ClusterName --resource-group $ResourceGroup --attach-acr $RegistryName -o none
+    Invoke-Az @('aks', 'update', '--name', $ClusterName, '--resource-group', $ResourceGroup,
+                '--attach-acr', $RegistryName, '-o', 'none')
 }
 
-Invoke-Az aks get-credentials --name $ClusterName --resource-group $ResourceGroup --overwrite-existing -o none
+Invoke-Az @('aks', 'get-credentials', '--name', $ClusterName, '--resource-group', $ResourceGroup,
+            '--overwrite-existing', '-o', 'none')
 
 Write-Host "[5/6] applying manifests ..." -ForegroundColor Cyan
 kubectl apply -f (Join-Path $demo 'k8s\namespace.yaml')

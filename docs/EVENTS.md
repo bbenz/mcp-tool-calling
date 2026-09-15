@@ -30,6 +30,8 @@ The demo was built for this session. Everything in this repository was written a
 
 **Why not the cloud modes.** Docker and AKS were added after the demo was built, for reuse rather than for this room. A conference network is the worst place to depend on a load balancer that was provisioned an hour earlier, and a single laptop running four Python processes has fewer failure modes than a cluster. Mode 1 stays the rehearsed path.
 
+**Cloud rehearsal — 2026-09-15.** Mode 4 was deployed for real ahead of this event and torn down afterwards, so that the cloud option is a rehearsed fallback rather than a paper one. A single-node AKS cluster in `eastus`, image built by ACR Tasks, one pod with all five containers ready and zero restarts, **14/14 scenarios passing against the public IP**, and a ledger digest identical to the laptop's. Two bugs surfaced that only a real deployment could have found — both in the deploy script, both now fixed and recorded as defects 14 and 15 in [COMPATIBILITY-RECORD.md](COMPATIBILITY-RECORD.md). Cold deploy took roughly 8 minutes.
+
 **Retrospective** *(fill in after delivery)*
 
 | | |

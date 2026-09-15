@@ -114,6 +114,8 @@ Recorded because each one would have produced a misleading demo.
 | 11 | `scenario list` printed blank descriptions | The list of what the demo can show was unreadable — the claim lived in a `claim=` keyword argument, not in a docstring, so the listing had nothing to read | Introduced a canonical `CLAIMS` dict as the single source for both the listing and each result, pinned by a drift test |
 | 12 | `requirements.txt` pinned `pywin32==312` with no environment marker | **The container image could not be built at all** — `pip` stopped at `No matching distribution found for pywin32`, because it has no Linux build. The file was frozen on Windows, so the laptop never noticed | Marked `; sys_platform == "win32"`. `test_requirements_mark_windows_only_pins` fails on any unmarked Windows-only pin |
 | 13 | Both MCP servers called `streamable_http_app()` with no transport settings | **Every tool call failed with `421 Misdirected Request` in containers**, but only *after* a fully successful OAuth handshake — so it read as a token bug when it was a transport bug. The SDK auto-enables DNS rebinding protection for loopback servers and then allows only `localhost`-ish `Host` headers; under Compose the Host header is `mcp-a:8801` | Settings now build explicit `TransportSecuritySettings`. Protection stays **on**; `MCP_ALLOWED_HOSTS` extends the allowlist. Pinned by three tests |
+| 14 | `aks-up.ps1`'s `Invoke-Az` helper used `ValueFromRemainingArguments` | **The deploy script died on its first command**, before creating anything: `ValueFromRemainingArguments` does not stop PowerShell binding things that look like parameters, so `-o none` failed with *"the parameter name 'o' is ambiguous"* against `-OutVariable` / `-OutBuffer`. A pure syntax check cannot catch this — the script parses fine | The helper now takes a single `[string[]]` array and every call site passes `@('acr','build',...)` |
+| 15 | `az acr build` streamed its build log to a Windows console | **The deploy aborted with `UnicodeEncodeError: 'charmap' codec can't encode`** — *after* the image had been built and pushed successfully. `az` is a Python app; colorama writes the streamed log in cp1252 and dies on the first character it cannot map. `PYTHONIOENCODING=utf-8` does **not** fix it, because colorama wraps the console handle itself | `--no-logs` on the build. It still waits for the run and still fails loudly; the script prints the `az acr task logs` command to use when it does |
 
 ---
 
@@ -121,16 +123,18 @@ Recorded because each one would have produced a misleading demo.
 
 ### Verified on this machine
 
-- All 141 automated tests pass (`pytest tests/ -q`).
+- All 143 automated tests pass (`pytest tests/ -q`).
 - All 14 stage scenarios pass (`python -m refund_demo.scenarios run-all`).
 - Full protocol trace: 401 challenge → PRM → AS metadata → PKCE S256 → RFC 8707 resource indicator → audience-bound token → `tools/call`.
 - On-behalf-of exchange, delegated identity preservation, and upstream re-enforcement.
 - All three adversarial checks, each with an unchanged ledger digest.
 - The web API end to end against live services: health, scenario listing, a real run, ledger digest, audit tail, and `403` on reset.
 - **The container image builds**, and **all 14 scenarios pass inside Docker Compose** with all five containers healthy.
-- **The clean-ledger digest is identical in Compose and on the laptop** (`211597d92491…`), so seeded data and fingerprinting agree across environments.
+- **The demo runs on a real AKS cluster.** Image built by ACR Tasks, pod rolled out 5/5 ready with zero restarts, **all 14 scenarios passed against the public IP**, and the access-key gate returned `401` without a key and `200` with one while `/health` stayed open for probes.
+- **The clean-ledger digest is identical on the laptop, in Compose, and on AKS** (`211597d92491…`); a full scenario run lands on `a24b01f92f67` on both the laptop and the cluster.
+- **`readOnlyRootFilesystem: true` holds in practice** — no container restarted.
 - Image layout: source at `/app/src`, `.local` resolving to `/app/.local`, `.venv` and `tests` excluded, and the non-root user able to write the state directory.
-- Compose file syntax (`docker compose config`), Dockerfile lint (`docker build --check`, no warnings), and cross-file agreement between Compose, Kubernetes and the Dockerfile (46 tests).
+- Compose file syntax (`docker compose config`), Dockerfile lint (`docker build --check`, no warnings), and cross-file agreement between Compose, Kubernetes and the Dockerfile (48 tests).
 - Both teardown scripts on a non-existent resource group, and identical registry-name derivation between PowerShell and bash.
 
 ### NOT verified — state this plainly if asked
@@ -138,9 +142,8 @@ Recorded because each one would have produced a misleading demo.
 | Item | Why | Risk |
 | --- | --- | --- |
 | **Microsoft Entra ID mode** (`AUTH_MODE=entra`) | No tenant access was authorized | The MSAL on-behalf-of path and real Entra discovery are **untested**. `AUTH_MODE=devidp` is the presentation default. |
-| **Azure deployment** (`demo/infra`) | Provisioning was not approved; nothing was deployed | Bicep compiles (`az bicep build`) but has never been applied. Treat first deploy as a two-hour task, not a five-minute one. |
-| **AKS deployment** | No subscription was authorized | Manifests are schema-shaped and pinned by 46 tests; no rollout was observed. The image and the application are now proven under Compose, which removes much of the risk but not the cluster-specific part. Rehearse it days ahead, never on the day (R17). |
-| **`readOnlyRootFilesystem: true`** | Compose does not set it, and no pod has run | If a container crashloops on AKS, relax this first. `/tmp` is an `emptyDir` and `PYTHONDONTWRITEBYTECODE=1` is set, so it *should* hold. |
+| **Azure deployment** (`demo/infra`) | The AKS path uses `k8s/` and the deploy script instead; the Bicep was never applied | Bicep compiles (`az bicep build`) but has never been deployed. Note this is a *different* artifact from the verified AKS path — that one is proven, this one is not. |
+| **`aks-up.sh`** (bash deploy) | The verified deployment ran `aks-up.ps1` | Syntax-checked and command-for-command equivalent to the PowerShell version, but never driven a real deployment. |
 | **Copilot / VS Code MCP OAuth redirect URIs** | Could not be confirmed against a live client | `demo/identity/README.md` marks these as TODO. Confirm from the client's own error message during rehearsal. |
 | **Least-privilege Foundry RBAC role** | Not confirmed against live role definitions | `demo/infra/modules/foundry.bicep` documents the assumption. |
 | **Live Foundry inference** | No endpoint configured | `assess_refund` falls back to an offline assessment that is explicitly labelled `live: false` and prefixed `[OFFLINE ASSESSMENT - NO MODEL WAS CALLED]`. It can never be mistaken for live output. |

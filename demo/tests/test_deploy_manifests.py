@@ -282,3 +282,40 @@ def test_both_mcp_servers_apply_the_transport_security_settings():
         text = open(path, encoding="utf-8").read()
         assert "streamable_http_app(transport_security=" in text, module
 
+
+# --- regressions found by actually deploying to a cluster ------------------
+#
+# Both of these killed a real deployment, and neither is catchable by a syntax
+# check -- the scripts parse perfectly fine with the bugs in them.
+
+AKS_UP_PS1 = os.path.join(DEMO, "scripts", "aks-up.ps1")
+AKS_UP_SH = os.path.join(DEMO, "scripts", "aks-up.sh")
+
+
+def test_deploy_helper_does_not_use_remaining_arguments():
+    """ValueFromRemainingArguments does not stop PowerShell parameter binding.
+
+    The helper was declared that way and the script died on its first az call:
+    `-o none` bound against -OutVariable/-OutBuffer and failed as ambiguous
+    before the function body ever ran. An array parameter is the fix.
+    """
+    text = open(AKS_UP_PS1, encoding="utf-8").read()
+    # The bug is named in a comment there on purpose, so match the attribute.
+    assert not re.search(r"\[Parameter\([^)]*ValueFromRemainingArguments", text)
+    assert re.search(r"function\s+Invoke-Az\b", text)
+    assert re.search(r"\[string\[\]\]\s*\$AzArgs", text)
+
+
+def test_acr_build_does_not_stream_logs():
+    """az acr build's log streamer crashes on a cp1252 Windows console.
+
+    It dies with UnicodeEncodeError *after* pushing the image, so the build has
+    actually succeeded. PYTHONIOENCODING does not help; --no-logs does, and it
+    still waits for the run and still fails on a real build failure.
+    """
+    for path in (AKS_UP_PS1, AKS_UP_SH):
+        text = open(path, encoding="utf-8").read()
+        assert "acr build" in text, path
+        assert "--no-logs" in text, path
+        assert "acr task logs" in text, path
+

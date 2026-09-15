@@ -6,7 +6,7 @@ Every promise in the published session description, mapped to the code that impl
 
 **Tiers:** **A** = always live · **B** = live if on time, else prepared evidence · **C** = compress first.
 
-Run everything: `.\scripts\check.ps1` (or `./scripts/check.sh`) → 141 automated tests + 14 scenarios.
+Run everything: `.\scripts\check.ps1` (or `./scripts/check.sh`) → 143 automated tests + 14 scenarios.
 
 ---
 
@@ -116,7 +116,7 @@ The web UI and the container deployments were added so the demo can be reused be
 | 8.4 | Reset stays shut over HTTP | `WEB_ALLOW_RESET` defaults off; still refused in `entra` mode | `test_web.py::test_reset_is_refused_by_default`, `::test_reset_still_refused_in_entra_mode` | Optional | `POST /api/reset` → `403` | Operator |
 | 8.5 | No secret reaches the browser | Ledger and audit responses are filtered | `test_web.py::test_ledger_contains_no_secrets` | Optional | No token, code, or verifier in any response | Operator |
 | 8.6 | The access-key gate covers every data route but not probes | `_gate()` on all routes; `/health` exempt | `test_web.py::test_access_key_gates_every_data_route` | Optional | `401` everywhere, `200` on `/health` | Operator |
-| 8.7 | Compose, Kubernetes and the Dockerfile describe the same demo | One `TOPOLOGY` table; 46 assertions against it | `test_deploy_manifests.py` | Pre-show | Same five services, modules, ports and probes in all three | Operator |
+| 8.7 | Compose, Kubernetes and the Dockerfile describe the same demo | One `TOPOLOGY` table; 48 assertions against it | `test_deploy_manifests.py` | Pre-show | Same five services, modules, ports and probes in all three | Operator |
 | 8.8 | Containers override the loopback bind | `BIND_HOST=0.0.0.0` in the image, Compose, and the ConfigMap | `test_deploy_manifests.py::test_containers_override_the_bind_host` and twins | Pre-show | `devidp` is reachable inside the network | Operator |
 | 8.9 | The state directory is shared and writable by a non-root user | One volume at `/app/.local`; `fsGroup: 10001` | `test_deploy_manifests.py::test_every_container_mounts_the_shared_state_directory`, `::test_pod_runs_as_a_non_root_user` | Pre-show | One ledger, one audit log, one key across five containers | Operator |
 | 8.10 | The development issuer never gets a public address | Service exposes `8080` only | `test_deploy_manifests.py::test_only_the_web_container_is_exposed` | Pre-show | `devidp`, `mcp-a`, `mcp-b`, `upstream` stay internal | Operator |
@@ -124,6 +124,9 @@ The web UI and the container deployments were added so the demo can be reused be
 | 8.12 | The signing key never enters an image layer | `.dockerignore` excludes `.local/`, `.venv/`, `*.pem`, `*.key` | `test_deploy_manifests.py::test_dockerignore_keeps_local_state_out_of_the_image`, plus a real image build | Pre-show | `.venv` and `tests` absent from the image; `.local` empty and writable | Operator |
 | 8.13 | The image can be built on Linux from a Windows-frozen lockfile | Windows-only pins carry `; sys_platform == "win32"` | `test_deploy_manifests.py::test_requirements_mark_windows_only_pins` | Pre-show | `docker compose build` completes | Operator |
 | 8.14 | DNS rebinding protection stays on, and still works behind a service name | Explicit `TransportSecuritySettings`; `MCP_ALLOWED_HOSTS` extends the loopback allowlist | `test_deploy_manifests.py::test_dns_rebinding_protection_stays_on_and_always_allows_loopback`, `::test_extra_allowed_hosts_extend_rather_than_replace_loopback`, `::test_both_mcp_servers_apply_the_transport_security_settings`, `::test_compose_allows_the_service_names_as_mcp_hosts` | Pre-show | Tool calls succeed in Compose; no `421` | Operator |
+| 8.15 | The deploy script survives PowerShell parameter binding | `Invoke-Az` takes one `[string[]]` array, not `ValueFromRemainingArguments` | `test_deploy_manifests.py::test_deploy_helper_does_not_use_remaining_arguments` | Pre-show | `az ... -o none` no longer fails as "ambiguous" before the call is made | Operator |
+| 8.16 | The image build survives a Windows console | `az acr build --no-logs`, with the `az acr task logs` command printed | `test_deploy_manifests.py::test_acr_build_does_not_stream_logs` | Pre-show | No `UnicodeEncodeError` after a successful push | Operator |
+| 8.17 | The demo runs on a real cluster | `aks-up.ps1` end to end, then `run-all` against the public IP | Deployment run, 2026-09-15 | Rehearsal | 5/5 containers ready, 0 restarts, 14/14 scenarios, ledger digest identical to the laptop | Operator |
 
 ---
 
@@ -138,5 +141,6 @@ The web UI and the container deployments were added so the demo can be reused be
 | Least-privilege Foundry RBAC role | **Assumed** | Documented in `infra/modules/foundry.bicep`; not validated against live role definitions. |
 | Client approval UI (4.3, 4.4) | **Manual only** | No automated test can prove a dialog appeared. |
 | Container image build (8.x) | **Verified** | Builds clean; all 14 scenarios pass inside Compose; clean-ledger digest matches the laptop. |
-| `readOnlyRootFilesystem` on AKS | **Untested** | Compose does not set it and no pod has run. Relax it first if a container crashloops. |
-| AKS deployment | **Never deployed** | No subscription was authorized. Manifests are schema-shaped and pinned by 46 tests; no rollout was observed. |
+| `readOnlyRootFilesystem` on AKS | **Verified** | Ran on a live pod with zero container restarts. |
+| AKS deployment | **Verified** | Real cluster created; 5/5 containers ready, 0 restarts, 14/14 scenarios passed against the public IP, ledger digest matched the laptop. |
+| `aks-up.sh` (bash deploy) | **Untested end to end** | The verified deployment ran `aks-up.ps1`. The bash twin is syntax-checked and equivalent command for command. |

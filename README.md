@@ -13,7 +13,7 @@ Everything here runs locally in about ten minutes, with no Azure subscription an
 cd demo
 .\scripts\bootstrap.ps1
 .\scripts\start-all.ps1 -Reset
-.\scripts\check.ps1          # 141 tests + 14 scenarios -> READY
+.\scripts\check.ps1          # 143 tests + 14 scenarios -> READY
 ```
 
 **Bash** (Git Bash on Windows, Linux, macOS, WSL):
@@ -23,7 +23,7 @@ cd demo
 chmod +x scripts/*.sh        # only if your clone lost the executable bit
 ./scripts/bootstrap.sh
 ./scripts/start-all.sh --reset
-./scripts/check.sh           # 141 tests + 14 scenarios -> READY
+./scripts/check.sh           # 143 tests + 14 scenarios -> READY
 ```
 
 Every command must be run from the `demo/` directory. A `.ps1` cannot be run by bash and a `.sh` cannot be run by PowerShell — use the twin for the shell you are in. WSL needs its own `bootstrap.sh`, because a Windows `.venv` will not load on Linux; see [SETUP.md](docs/SETUP.md#choosing-a-shell-and-a-note-on-wsl).
@@ -156,7 +156,7 @@ demo/
     web/                 # browser view :8080 -- reports decisions, makes none
     client.py            # OAuth client + protocol trace
     scenarios.py         # 14 named stage scenarios
-  tests/                 # 141 tests
+  tests/                 # 143 tests
   scripts/               # PowerShell + bash operator commands
   docker/                # Dockerfile + Compose -- five containers, one image
   k8s/                   # AKS manifests -- one pod, five containers
@@ -175,7 +175,8 @@ Stated here because a talk about authorization should not overclaim.
 - **The audit log is a JSONL file.** Structured and pseudonymized — but not immutable and not tamper-proof.
 - **`AUTH_MODE=entra` has never been executed.** No tenant was authorized for this build. The default and the rehearsed path is the local authorization server, which is a real OAuth server validated by the same code.
 - **`demo/infra` has never been deployed.** The Bicep compiles; that is the entire claim.
-- **The AKS deployment has never run.** No subscription was authorized, so no cluster was ever created. The image builds and the whole demo passes under Docker Compose, which proves the application and the container; it does not prove the rollout. Manifests are pinned by 46 tests. [DEPLOYMENT.md §7](docs/DEPLOYMENT.md#7-what-is-verified-and-what-is-not).
+- **The AKS deployment is verified.** A real cluster was created, the image was built by ACR Tasks, the pod rolled out 5/5 ready with zero restarts, and all 14 scenarios passed against the public IP with a ledger digest identical to the laptop. Manifests are pinned by 48 tests. [DEPLOYMENT.md §7](docs/DEPLOYMENT.md#7-what-is-verified-and-what-is-not).
+- **`aks-up.sh` has never driven a real deployment.** The verified run used `aks-up.ps1`; the bash twin is syntax-checked and command-for-command equivalent.
 - **The AKS deployment has never been run.** No subscription was authorized. Schema-shaped and test-pinned is not the same as a green rollout.
 - **The client approval UI is verified by hand only.** No automated test can prove a dialog appeared.
 - **A cancelled request is client-only evidence.** The server never saw it, so it cannot show you a record of refusing it.

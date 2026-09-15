@@ -21,6 +21,12 @@ set -euo pipefail
 
 DEMO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# az is a Python application, and `az acr build` streams the build log through
+# its stdout encoder. Under Git Bash on Windows that can default to cp1252, and
+# one non-cp1252 character in pip's output then kills the command with
+# UnicodeEncodeError *after* the image has already been built and pushed.
+export PYTHONIOENCODING=utf-8
+
 RESOURCE_GROUP=rg-mcp-refund-demo
 LOCATION=eastus
 CLUSTER_NAME=aks-mcp-refund-demo
@@ -99,8 +105,20 @@ fi
 echo "[3/6] building image in ACR (this is where the pip install happens) ..."
 # Built server-side on purpose: ACR Tasks can reach PyPI even when the laptop
 # cannot, and the build machine matches the cluster architecture.
-az acr build --registry "$REGISTRY_NAME" --image "refund-demo:$TAG" \
-  --file docker/Dockerfile "$DEMO" -o none
+#
+# --no-logs is not cosmetic. Streaming the build log routes it through
+# colorama, which under Git Bash on Windows writes in cp1252 and dies with
+# UnicodeEncodeError on the first character it cannot map -- *after* the image
+# has been built and pushed. The command still waits for the run to finish and
+# still fails loudly if the build fails; you just have to ask for the log.
+if ! az acr build --registry "$REGISTRY_NAME" --image "refund-demo:$TAG" \
+     --file docker/Dockerfile "$DEMO" --no-logs -o none; then
+  echo ""
+  echo "The image build failed. Fetch the log with:" >&2
+  echo "  az acr task list-runs --registry $REGISTRY_NAME --top 1 -o table" >&2
+  echo "  az acr task logs --registry $REGISTRY_NAME --run-id <runId>" >&2
+  exit 1
+fi
 
 LOGIN_SERVER="$(az acr show --name "$REGISTRY_NAME" --resource-group "$RESOURCE_GROUP" --query loginServer -o tsv)"
 IMAGE="$LOGIN_SERVER/refund-demo:$TAG"

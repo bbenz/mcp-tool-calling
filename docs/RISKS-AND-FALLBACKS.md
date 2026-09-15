@@ -173,11 +173,11 @@ Every realistic failure mode, how the presenter detects it **within seconds**, a
 
 | | |
 | --- | --- |
-| **Likelihood** | Medium on a first attempt |
+| **Likelihood** | Low now that the path has been proven end to end — but still medium on a first attempt from an unrehearsed machine |
 | **Detection** | `aks-up` stalls at cluster creation or at `rollout status`, or the Service never gets an external IP |
-| **Why it happens** | `az aks create` takes several minutes on a good day, and load-balancer IP assignment is not instant. Quota, region capacity, and ACR attachment are all ways a first run stops. |
+| **Why it happens** | `az aks create` takes several minutes on a good day, and load-balancer IP assignment is not instant. Quota, region capacity, and ACR attachment are all ways a first run stops. The one proven run took roughly 8 minutes end to end. |
 | **Fallback** | The cloud path is **never on the critical path**. Close the tab and run the demo locally; nothing in the 25 minutes requires it. |
-| **Prevention** | **Deploy and tear down once as a rehearsal, days ahead.** Never deploy for the first time on the day of a talk. `kubectl -n refund-demo get pods` and `kubectl -n refund-demo logs <pod> -c <container>` are the only two diagnostics worth running. |
+| **Prevention** | **Deploy and tear down once as a rehearsal, days ahead.** Never deploy for the first time on the day of a talk. `kubectl -n refund-demo get pods` and `kubectl -n refund-demo logs <pod> -c <container>` are the only two diagnostics worth running. If `az acr build` dies with a `charmap` codec error, the image almost certainly built anyway — check `az acr task list-runs --registry <registry> --top 1 -o table` before re-running anything. |
 
 ### R18 · Cloud demo left running after the event
 
@@ -200,5 +200,5 @@ These are not failure modes — they are things that must be said regardless of 
 | Model refusal is **not** the security boundary | Segment 5 |
 | The audit log is a JSONL file — **not immutable, not tamper-proof** | Segment 6 |
 | Entra mode and the Azure deployment are **implemented but unexecuted** — no tenant or subscription was authorized | Q&A, if asked |
-| The **AKS deployment was never run** — the image and the whole demo are proven under Docker Compose, but no cluster was ever created | Q&A, if asked |
+| The **`aks-up.sh` bash deploy path has never driven a real deployment** — the verified cloud run used the PowerShell script | Q&A, if asked |
 | One pod with five containers is a **demo shape, not a hosting recommendation** — the SQLite ledger makes one writer a hard constraint | Q&A, if asked |
