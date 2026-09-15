@@ -297,24 +297,50 @@ Said plainly, because a talk about authorization should not overclaim.
 
 **Verified by execution:**
 
-- Modes 1 and 2, in PowerShell and bash: 143 tests, 14 scenarios, `READY` from `check`.
+- Modes 1 and 2, in PowerShell and bash: 164 tests, 14 scenarios, `READY` from `check`.
 - The web API end to end against live services: health, scenario listing, a real run, ledger digest, audit tail, and `403` on reset.
 - **Mode 3 end to end.** The image builds, all five containers report healthy, and **all 14 scenarios pass inside Compose** with the ledger moving only on the scenario that is supposed to move it.
-- **Mode 4 end to end.** A real AKS cluster was created, the image was built by ACR Tasks, the pod rolled out with 5/5 containers ready and zero restarts, and **all 14 scenarios passed against the public IP**.
+- **Mode 4 end to end, twice.** A real AKS cluster was created, the image was built by ACR Tasks, the pod rolled out with 5/5 containers ready and zero restarts, and **all 14 scenarios passed against the public IP**. The second run proved the security hardening below.
 - The clean-ledger digest is **identical in all three environments** — laptop, Compose and AKS (`211597d92491…`) — and a full scenario run lands on `a24b01f92f67` on both the laptop and the cluster.
 - The access-key gate on a public address: `401` without a key, `200` with one, and `/health` deliberately exempt so the Kubernetes probes keep working.
-- `readOnlyRootFilesystem: true` **does** hold in practice — the pod ran with no restarts.
+- **The hardening in §8, proven against the live public endpoint:** deleting the Secret returns `503` on every route instead of serving anonymously, `/health` still answers, and `devidp` refuses connections on the pod IP (`curl: (7)`) while still answering on loopback.
+- `readOnlyRootFilesystem: true` **does** hold in practice — the pod ran with no restarts, including with `exec` probes.
 - Image layout: source lands at `/app/src`, `.local` resolves to `/app/.local`, `.venv` and `tests` are excluded, and the non-root user can write the state directory.
 - Compose file syntax via `docker compose config`; Dockerfile lint via `docker build --check` (no warnings).
-- Manifest structure and cross-file agreement, via 48 tests that fail if Compose, Kubernetes and the Dockerfile stop describing the same demo.
+- Manifest structure and cross-file agreement, via 57 tests that fail if Compose, Kubernetes and the Dockerfile stop describing the same demo.
 - Teardown behaviour on a non-existent resource group, in both shells, and identical registry-name derivation between them.
 
 **Not verified:**
 
 - **`AUTH_MODE=entra` has never been executed**, in any mode.
 - **`demo/infra` Bicep has never been deployed.** It compiles; that is the whole claim. Note that this is a *separate* artifact from `k8s/` — the AKS path above does not use it.
-- **The bash deploy script has never driven a real deployment.** `aks-up.sh` is syntax-checked and mirrors the PowerShell logic command for command, but the verified run was `aks-up.ps1`.
+- **The bash deploy script has never driven a real deployment.** `aks-up.sh` is syntax-checked and mirrors the PowerShell logic command for command, but both verified runs were `aks-up.ps1`.
+- **There is no TLS.** The cloud mode serves plain HTTP, so the access key is readable by anyone on the network path. See §8.
 - **Nothing has been observed over more than a few hours of uptime**, or under more than one user at a time.
+
+---
+
+## 8. Security posture of the cloud mode
+
+The cloud mode puts a demo on a public IP. A security review of that exposure found five issues; four are fixed, one is inherent to the design and is stated here instead.
+
+**Fixed, and verified against a live endpoint:**
+
+| Was | Now |
+| --- | --- |
+| An empty `WEB_ACCESS_KEY` meant *no gate*, so a missing or mis-keyed Secret silently served the whole app to the internet with the pod still healthy | `WEB_REQUIRE_ACCESS_KEY=1` on the public deployment makes an empty key return **503**. Laptop and Compose runs are unchanged. `/health` still answers so probes survive the mistake |
+| `BIND_HOST: "0.0.0.0"` in the ConfigMap put **all five** services on the pod IP, including the dev issuer that mints a token for any audience to anyone who asks | `BIND_HOST` is per container: `127.0.0.1` for the four internal ones, `0.0.0.0` only for `web`. Their probes are `exec` curl against localhost, because a kubelet `httpGet` targets the pod IP |
+| `/authorize` interpolated `client_id`, `scope` and `resource` into HTML unescaped, and accepted any `redirect_uri` | `html.escape()` on all three, and `redirect_uri` restricted to loopback callbacks per RFC 8252 |
+| The access key was compared with `==` | `hmac.compare_digest` |
+
+**Not fixed — know this before you share a link:**
+
+> **The endpoint is plain HTTP and the key travels in the URL.** Anyone on the network path — conference Wi-Fi, a hotel, any transit hop, any proxy log — can read it from a single request and then has the whole app: they can run scenarios, move the ledger digest you are about to show on stage, and read the audit trail. It reaches nothing real and cannot pivot into Azure (`automountServiceAccountToken: false`), but it can embarrass you.
+>
+> Mitigations, in increasing order of effort: treat the link as **single-session and disposable**, and redeploy for a clean ledger; add `loadBalancerSourceRanges` to `k8s/service.yaml` scoped to your egress IP; make the Service internal and use `kubectl port-forward`; or front it with an HTTPS ingress. **Do not leave it running unattended** — see R18.
+
+**Known and accepted:** there is no rate limiting, and `/health` is anonymous. A determined visitor can grow `audit.jsonl` on the pod's `emptyDir` until the container hits its 512Mi limit and restarts. That costs you the ledger, not a compromise.
+
 
 ---
 

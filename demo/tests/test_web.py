@@ -110,3 +110,40 @@ def test_a_scenario_runs_end_to_end_through_the_web_api(client, services):
     assert body["passed"] is True
     assert body["ledger_changed"] is False
     assert body["claim"] == CLAIMS["wrong-audience"]
+
+
+# --- the gate must fail closed where it has a public address ---------------
+#
+# A missing or mis-keyed Secret used to remove authentication entirely, with
+# the pod still reporting healthy and nothing in the logs to say so.
+
+def test_no_key_still_means_no_gate_on_a_local_run(monkeypatch, fresh_settings, client):
+    monkeypatch.delenv("WEB_ACCESS_KEY", raising=False)
+    monkeypatch.delenv("WEB_REQUIRE_ACCESS_KEY", raising=False)
+    get_settings.cache_clear()
+    assert client.get("/api/scenarios").status_code == 200
+
+
+def test_a_public_deployment_without_a_key_refuses_to_serve(monkeypatch, fresh_settings, client):
+    monkeypatch.delenv("WEB_ACCESS_KEY", raising=False)
+    monkeypatch.setenv("WEB_REQUIRE_ACCESS_KEY", "1")
+    get_settings.cache_clear()
+    for path in ("/", "/api/scenarios", "/api/ledger", "/api/audit", "/api/services"):
+        assert client.get(path).status_code == 503, path
+
+
+def test_health_answers_even_when_the_gate_is_refusing(monkeypatch, fresh_settings, client):
+    """Probes must not be taken down by an operator configuration error."""
+    monkeypatch.delenv("WEB_ACCESS_KEY", raising=False)
+    monkeypatch.setenv("WEB_REQUIRE_ACCESS_KEY", "1")
+    get_settings.cache_clear()
+    assert client.get("/health").status_code == 200
+
+
+def test_a_wrong_key_is_still_401_not_503(monkeypatch, fresh_settings, client):
+    monkeypatch.setenv("WEB_ACCESS_KEY", "correct-horse")
+    monkeypatch.setenv("WEB_REQUIRE_ACCESS_KEY", "1")
+    get_settings.cache_clear()
+    assert client.get("/api/scenarios?k=wrong").status_code == 401
+    assert client.get("/api/scenarios?k=correct-horse").status_code == 200
+    assert client.get("/api/scenarios", headers={"X-Demo-Key": "correct-horse"}).status_code == 200

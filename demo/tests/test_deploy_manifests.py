@@ -86,12 +86,52 @@ def test_kubernetes_container_exposes_the_expected_port(containers, name):
 
 @pytest.mark.parametrize("name", sorted(TOPOLOGY))
 def test_probes_target_that_same_port(containers, name):
-    """A probe pointed at the wrong port reads as a crashloop, not a typo."""
+    """A probe pointed at the wrong port reads as a crashloop, not a typo.
+
+    Only `web` binds the pod IP, so only `web` can answer a kubelet httpGet.
+    The other four bind loopback and are probed with curl from inside the pod.
+    """
     _, port = TOPOLOGY[name]
     for probe in ("readinessProbe", "livenessProbe"):
-        http = containers[name][probe]["httpGet"]
-        assert http["port"] == port
-        assert http["path"] == "/health"
+        spec = containers[name][probe]
+        if name == "web":
+            assert spec["httpGet"]["port"] == port
+            assert spec["httpGet"]["path"] == "/health"
+        else:
+            command = spec["exec"]["command"]
+            assert command[0] == "curl"
+            assert f"http://localhost:{port}/health" in command
+
+
+def _env_of(container) -> dict:
+    return {e["name"]: e.get("value") for e in container.get("env", [])}
+
+
+@pytest.mark.parametrize("name", sorted(set(TOPOLOGY) - {"web"}))
+def test_internal_containers_bind_loopback_only(containers, name):
+    """Five containers share one network namespace; only web faces the Service.
+
+    A blanket BIND_HOST=0.0.0.0 put the dev issuer -- which mints a token for
+    any audience, to anyone who asks -- on the pod IP, reachable from every
+    other pod in the cluster.
+    """
+    assert _env_of(containers[name])["BIND_HOST"] == "127.0.0.1"
+
+
+def test_web_container_binds_all_interfaces(containers):
+    assert _env_of(containers["web"])["BIND_HOST"] == "0.0.0.0"
+
+
+def test_the_public_deployment_requires_an_access_key(containers):
+    """An absent Secret must fail closed, not silently remove authentication."""
+    assert _env_of(containers["web"])["WEB_REQUIRE_ACCESS_KEY"] == "1"
+
+
+def test_bind_host_is_not_set_for_every_container_at_once():
+    """The ConfigMap is consumed by all five containers via envFrom."""
+    with open(os.path.join(K8S, "configmap.yaml"), encoding="utf-8") as fh:
+        data = yaml.safe_load(fh)["data"]
+    assert "BIND_HOST" not in data
 
 
 # --- SQLite means one writer, and the manifests have to say so ------------
@@ -133,8 +173,12 @@ def test_containers_override_the_bind_host(compose):
 
 
 def test_kubernetes_overrides_the_bind_host():
-    data = _load(os.path.join(K8S, "configmap.yaml"))["data"]
-    assert data["BIND_HOST"] == "0.0.0.0"
+    """Per container, not for all five at once -- see the loopback tests above."""
+    containers = {
+        c["name"]: c
+        for c in _load(os.path.join(K8S, "deployment.yaml"))["spec"]["template"]["spec"]["containers"]
+    }
+    assert _env_of(containers["web"])["BIND_HOST"] == "0.0.0.0"
 
 
 def test_dockerfile_defaults_the_bind_host():

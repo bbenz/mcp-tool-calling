@@ -70,9 +70,14 @@ class Settings(BaseSettings):
     # in the cloud deployment: a "put the ledger back" endpoint reachable from
     # the internet is precisely the escalation this talk argues against.
     web_allow_reset: bool = False
-    # Optional shared secret for the web UI. Empty means no gate, which is fine
-    # on a laptop and is NOT fine on a public IP.
+    # Optional shared secret for the web UI. Empty is fine on a laptop and
+    # under Compose, where the address is local. See web_require_access_key.
     web_access_key: str = ""
+    # Set this on any deployment that has a public address. It makes an absent
+    # WEB_ACCESS_KEY fail closed (503) instead of quietly serving the whole app
+    # to anyone: a missing or mis-keyed Secret used to remove authentication
+    # with the pod still reporting healthy and nothing in the logs to say so.
+    web_require_access_key: bool = False
 
     # Extra Host header values the MCP transport will accept, comma separated,
     # e.g. "mcp-a:8801,mcp-a:*". The SDK turns on DNS rebinding protection and

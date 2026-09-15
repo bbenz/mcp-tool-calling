@@ -54,6 +54,14 @@ spec:
           image: IMAGE_PLACEHOLDER
           command: ["python", "-m", "refund_demo.devidp.server"]
           envFrom: [{configMapRef: {name: refund-demo-config}}]
+          env: &loopback_bind
+            # The image sets BIND_HOST=0.0.0.0 for Compose, where every service
+            # is a separate network namespace. In a pod all five share one, so
+            # everything except web binds loopback and is unreachable from the
+            # rest of the cluster. Probes below use exec for the same reason:
+            # a kubelet httpGet goes to the pod IP, which nothing here answers.
+            - name: BIND_HOST
+              value: "127.0.0.1"
           ports: [{containerPort: 8800, name: devidp}]
           volumeMounts: &mounts
             - {name: state, mountPath: /app/.local}
@@ -66,11 +74,13 @@ spec:
             requests: {cpu: "50m", memory: "128Mi"}
             limits: {cpu: "500m", memory: "512Mi"}
           readinessProbe:
-            httpGet: {path: /health, port: 8800}
+            exec:
+              command: ["curl", "-fsS", "-o", "/dev/null", "http://localhost:8800/health"]
             periodSeconds: 5
             failureThreshold: 3
           livenessProbe:
-            httpGet: {path: /health, port: 8800}
+            exec:
+              command: ["curl", "-fsS", "-o", "/dev/null", "http://localhost:8800/health"]
             periodSeconds: 20
             failureThreshold: 6
 
@@ -79,16 +89,19 @@ spec:
           image: IMAGE_PLACEHOLDER
           command: ["python", "-m", "refund_demo.upstream_api.app"]
           envFrom: [{configMapRef: {name: refund-demo-config}}]
+          env: *loopback_bind
           ports: [{containerPort: 8803, name: upstream}]
           volumeMounts: *mounts
           securityContext: *hardening
           resources: *resources
           readinessProbe:
-            httpGet: {path: /health, port: 8803}
+            exec:
+              command: ["curl", "-fsS", "-o", "/dev/null", "http://localhost:8803/health"]
             periodSeconds: 5
             failureThreshold: 3
           livenessProbe:
-            httpGet: {path: /health, port: 8803}
+            exec:
+              command: ["curl", "-fsS", "-o", "/dev/null", "http://localhost:8803/health"]
             periodSeconds: 20
             failureThreshold: 6
 
@@ -97,16 +110,19 @@ spec:
           image: IMAGE_PLACEHOLDER
           command: ["python", "-m", "refund_demo.mcp_server.app"]
           envFrom: [{configMapRef: {name: refund-demo-config}}]
+          env: *loopback_bind
           ports: [{containerPort: 8801, name: mcp-a}]
           volumeMounts: *mounts
           securityContext: *hardening
           resources: *resources
           readinessProbe:
-            httpGet: {path: /health, port: 8801}
+            exec:
+              command: ["curl", "-fsS", "-o", "/dev/null", "http://localhost:8801/health"]
             periodSeconds: 5
             failureThreshold: 3
           livenessProbe:
-            httpGet: {path: /health, port: 8801}
+            exec:
+              command: ["curl", "-fsS", "-o", "/dev/null", "http://localhost:8801/health"]
             periodSeconds: 20
             failureThreshold: 6
 
@@ -115,16 +131,19 @@ spec:
           image: IMAGE_PLACEHOLDER
           command: ["python", "-m", "refund_demo.resource_b.app"]
           envFrom: [{configMapRef: {name: refund-demo-config}}]
+          env: *loopback_bind
           ports: [{containerPort: 8802, name: mcp-b}]
           volumeMounts: *mounts
           securityContext: *hardening
           resources: *resources
           readinessProbe:
-            httpGet: {path: /health, port: 8802}
+            exec:
+              command: ["curl", "-fsS", "-o", "/dev/null", "http://localhost:8802/health"]
             periodSeconds: 5
             failureThreshold: 3
           livenessProbe:
-            httpGet: {path: /health, port: 8802}
+            exec:
+              command: ["curl", "-fsS", "-o", "/dev/null", "http://localhost:8802/health"]
             periodSeconds: 20
             failureThreshold: 6
 
@@ -134,8 +153,17 @@ spec:
           command: ["python", "-m", "refund_demo.web.app"]
           envFrom: [{configMapRef: {name: refund-demo-config}}]
           env:
-            # Written by aks-up; absent means the UI is open to anyone who
-            # finds the address, which is why the deploy script generates one.
+            # The image sets BIND_HOST=0.0.0.0 because Compose needs it. In a
+            # pod the five containers share one network namespace, so only the
+            # container that answers the Service needs a public bind. The other
+            # four override it back to loopback below.
+            - name: BIND_HOST
+              value: "0.0.0.0"
+            # This deployment has a public IP, so an absent key must fail closed.
+            - name: WEB_REQUIRE_ACCESS_KEY
+              value: "1"
+            # Written by aks-up. If it is absent the app returns 503 rather than
+            # serving to everyone -- see _gate() in web/app.py.
             - name: WEB_ACCESS_KEY
               valueFrom:
                 secretKeyRef:

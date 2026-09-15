@@ -32,6 +32,8 @@ The demo was built for this session. Everything in this repository was written a
 
 **Cloud rehearsal — 2026-09-15.** Mode 4 was deployed for real ahead of this event and torn down afterwards, so that the cloud option is a rehearsed fallback rather than a paper one. A single-node AKS cluster in `eastus`, image built by ACR Tasks, one pod with all five containers ready and zero restarts, **14/14 scenarios passing against the public IP**, and a ledger digest identical to the laptop's. Two bugs surfaced that only a real deployment could have found — both in the deploy script, both now fixed and recorded as defects 14 and 15 in [COMPATIBILITY-RECORD.md](COMPATIBILITY-RECORD.md). Cold deploy took roughly 8 minutes.
 
+A security review of that public exposure then found four more defects (16–19), the worst being an access-key gate that failed **open** — a missing Secret would have served the whole demo anonymously with the pod still reporting healthy. All four are fixed, and the fixes were proven on a second live deployment before teardown. The cluster is **not** left running: see [DEPLOYMENT.md §8](DEPLOYMENT.md#8-security-posture-of-the-cloud-mode) before sharing a link at any future event, because the endpoint is plain HTTP and the key travels in the URL.
+
 **Retrospective** *(fill in after delivery)*
 
 | | |

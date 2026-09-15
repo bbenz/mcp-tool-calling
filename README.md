@@ -13,7 +13,7 @@ Everything here runs locally in about ten minutes, with no Azure subscription an
 cd demo
 .\scripts\bootstrap.ps1
 .\scripts\start-all.ps1 -Reset
-.\scripts\check.ps1          # 143 tests + 14 scenarios -> READY
+.\scripts\check.ps1          # 164 tests + 14 scenarios -> READY
 ```
 
 **Bash** (Git Bash on Windows, Linux, macOS, WSL):
@@ -23,7 +23,7 @@ cd demo
 chmod +x scripts/*.sh        # only if your clone lost the executable bit
 ./scripts/bootstrap.sh
 ./scripts/start-all.sh --reset
-./scripts/check.sh           # 143 tests + 14 scenarios -> READY
+./scripts/check.sh           # 164 tests + 14 scenarios -> READY
 ```
 
 Every command must be run from the `demo/` directory. A `.ps1` cannot be run by bash and a `.sh` cannot be run by PowerShell — use the twin for the shell you are in. WSL needs its own `bootstrap.sh`, because a Windows `.venv` will not load on Linux; see [SETUP.md](docs/SETUP.md#choosing-a-shell-and-a-note-on-wsl).
@@ -156,7 +156,7 @@ demo/
     web/                 # browser view :8080 -- reports decisions, makes none
     client.py            # OAuth client + protocol trace
     scenarios.py         # 14 named stage scenarios
-  tests/                 # 143 tests
+  tests/                 # 164 tests
   scripts/               # PowerShell + bash operator commands
   docker/                # Dockerfile + Compose -- five containers, one image
   k8s/                   # AKS manifests -- one pod, five containers
@@ -175,9 +175,9 @@ Stated here because a talk about authorization should not overclaim.
 - **The audit log is a JSONL file.** Structured and pseudonymized — but not immutable and not tamper-proof.
 - **`AUTH_MODE=entra` has never been executed.** No tenant was authorized for this build. The default and the rehearsed path is the local authorization server, which is a real OAuth server validated by the same code.
 - **`demo/infra` has never been deployed.** The Bicep compiles; that is the entire claim.
-- **The AKS deployment is verified.** A real cluster was created, the image was built by ACR Tasks, the pod rolled out 5/5 ready with zero restarts, and all 14 scenarios passed against the public IP with a ledger digest identical to the laptop. Manifests are pinned by 48 tests. [DEPLOYMENT.md §7](docs/DEPLOYMENT.md#7-what-is-verified-and-what-is-not).
-- **`aks-up.sh` has never driven a real deployment.** The verified run used `aks-up.ps1`; the bash twin is syntax-checked and command-for-command equivalent.
-- **The AKS deployment has never been run.** No subscription was authorized. Schema-shaped and test-pinned is not the same as a green rollout.
+- **The AKS deployment is verified.** A real cluster was created, the image was built by ACR Tasks, the pod rolled out 5/5 ready with zero restarts, and all 14 scenarios passed against the public IP with a ledger digest identical to the laptop. Manifests are pinned by 57 tests. [DEPLOYMENT.md §7](docs/DEPLOYMENT.md#7-what-is-verified-and-what-is-not).
+- **`aks-up.sh` has never driven a real deployment.** The verified runs used `aks-up.ps1`; the bash twin is syntax-checked and command-for-command equivalent.
+- **The cloud mode has no TLS.** The access key travels in the URL over plain HTTP. Treat any shared link as disposable — [DEPLOYMENT.md §8](docs/DEPLOYMENT.md#8-security-posture-of-the-cloud-mode).
 - **The client approval UI is verified by hand only.** No automated test can prove a dialog appeared.
 - **A cancelled request is client-only evidence.** The server never saw it, so it cannot show you a record of refusing it.
 
@@ -187,8 +187,10 @@ Full list: [COVERAGE-MATRIX.md](docs/COVERAGE-MATRIX.md#not-proven--say-so-if-as
 
 ## Security notes
 
-`devidp` issues tokens to anyone who asks. **It must never run anywhere but localhost.** In the container and Kubernetes deployments it stays inside the Compose network and inside the pod respectively — the Kubernetes Service exposes port 8080 and nothing else, deliberately.
+`devidp` issues tokens to anyone who asks. **It must never run anywhere but localhost.** In the container and Kubernetes deployments it stays inside the Compose network and inside the pod respectively — the Kubernetes Service exposes port 8080 and nothing else, and in the pod `devidp` binds loopback so it is not reachable from the rest of the cluster either. That second part was a real defect, found by reviewing the live deployment rather than the manifest.
 
 All fixtures are synthetic; there is no real customer data. No secret, token, authorization code, or PKCE verifier is ever logged, printed, or committed — `.env` files, keys, and certificates are git-ignored, and `.dockerignore` keeps `.local/` out of every image layer so a signing key cannot be baked into one.
 
-The web interface reports decisions and makes none. Its reset endpoint is disabled over HTTP by default and refused outright in `entra` mode, and the AKS deployment generates a per-deployment access key because the load balancer address is public.
+The web interface reports decisions and makes none. Its reset endpoint is disabled over HTTP by default and refused outright in `entra` mode, and the AKS deployment generates a per-deployment access key. If that key is ever absent, the public deployment returns **503 rather than serving to everyone** — an empty key used to mean "no gate", which is the kind of fail-open default this talk exists to argue against.
+
+**The cloud mode is still plain HTTP**, so the key is readable by anyone on the network path. That is the one finding not fixed, and [DEPLOYMENT.md §8](docs/DEPLOYMENT.md#8-security-posture-of-the-cloud-mode) says so plainly along with the mitigations.

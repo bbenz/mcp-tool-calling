@@ -225,7 +225,7 @@ Both wrappers wait for all five containers to report healthy before printing the
 
 ### Azure Kubernetes Service — one pod, five containers
 
-> **Deployed and verified.** A real cluster was created and all 14 scenarios passed against the public IP. Manifests are pinned by 48 tests. Expect roughly 8–10 minutes for a cold deploy, and rehearse it days ahead rather than on the day.
+> **Deployed and verified.** A real cluster was created and all 14 scenarios passed against the public IP. Manifests are pinned by 57 tests. Expect roughly 8–10 minutes for a cold deploy, and rehearse it days ahead rather than on the day.
 
 | Task | PowerShell | Bash |
 | --- | --- | --- |

@@ -6,7 +6,7 @@ Every promise in the published session description, mapped to the code that impl
 
 **Tiers:** **A** = always live · **B** = live if on time, else prepared evidence · **C** = compress first.
 
-Run everything: `.\scripts\check.ps1` (or `./scripts/check.sh`) → 143 automated tests + 14 scenarios.
+Run everything: `.\scripts\check.ps1` (or `./scripts/check.sh`) → 164 automated tests + 14 scenarios.
 
 ---
 
@@ -126,7 +126,10 @@ The web UI and the container deployments were added so the demo can be reused be
 | 8.14 | DNS rebinding protection stays on, and still works behind a service name | Explicit `TransportSecuritySettings`; `MCP_ALLOWED_HOSTS` extends the loopback allowlist | `test_deploy_manifests.py::test_dns_rebinding_protection_stays_on_and_always_allows_loopback`, `::test_extra_allowed_hosts_extend_rather_than_replace_loopback`, `::test_both_mcp_servers_apply_the_transport_security_settings`, `::test_compose_allows_the_service_names_as_mcp_hosts` | Pre-show | Tool calls succeed in Compose; no `421` | Operator |
 | 8.15 | The deploy script survives PowerShell parameter binding | `Invoke-Az` takes one `[string[]]` array, not `ValueFromRemainingArguments` | `test_deploy_manifests.py::test_deploy_helper_does_not_use_remaining_arguments` | Pre-show | `az ... -o none` no longer fails as "ambiguous" before the call is made | Operator |
 | 8.16 | The image build survives a Windows console | `az acr build --no-logs`, with the `az acr task logs` command printed | `test_deploy_manifests.py::test_acr_build_does_not_stream_logs` | Pre-show | No `UnicodeEncodeError` after a successful push | Operator |
-| 8.17 | The demo runs on a real cluster | `aks-up.ps1` end to end, then `run-all` against the public IP | Deployment run, 2026-09-15 | Rehearsal | 5/5 containers ready, 0 restarts, 14/14 scenarios, ledger digest identical to the laptop | Operator |
+| 8.17 | The demo runs on a real cluster | `aks-up.ps1` end to end, then `run-all` against the public IP | Deployment runs, 2026-09-15 (twice) | Rehearsal | 5/5 containers ready, 0 restarts, 14/14 scenarios, ledger digest identical to the laptop | Operator |
+| 8.18 | A missing access-key Secret fails closed, not open | `WEB_REQUIRE_ACCESS_KEY=1` on the public deployment | `test_web.py::test_a_public_deployment_without_a_key_refuses_to_serve` and twins; proven live by deleting the Secret | Pre-show | Every route `503`; `/health` still `200` so probes survive | Operator |
+| 8.19 | The dev issuer is not reachable from the rest of the cluster | Per-container `BIND_HOST`; loopback for the four internal services | `test_deploy_manifests.py::test_internal_containers_bind_loopback_only`; proven live | Pre-show | `podIP:8800` refuses; `localhost:8800` answers | Operator |
+| 8.20 | `/authorize` cannot be turned into an XSS or code-exfiltration primitive | `html.escape()` on interpolated params; loopback-only `redirect_uri` per RFC 8252 | `test_devidp_authorize.py` (10 tests) | Pre-show | Hostile `redirect_uri` refused; `<script>` escaped | Operator |
 
 ---
 
@@ -143,4 +146,6 @@ The web UI and the container deployments were added so the demo can be reused be
 | Container image build (8.x) | **Verified** | Builds clean; all 14 scenarios pass inside Compose; clean-ledger digest matches the laptop. |
 | `readOnlyRootFilesystem` on AKS | **Verified** | Ran on a live pod with zero container restarts. |
 | AKS deployment | **Verified** | Real cluster created; 5/5 containers ready, 0 restarts, 14/14 scenarios passed against the public IP, ledger digest matched the laptop. |
-| `aks-up.sh` (bash deploy) | **Untested end to end** | The verified deployment ran `aks-up.ps1`. The bash twin is syntax-checked and equivalent command for command. |
+| `aks-up.sh` (bash deploy) | **Untested end to end** | The verified deployments ran `aks-up.ps1`. The bash twin is syntax-checked and equivalent command for command. |
+| TLS on the cloud mode | **Absent by design** | The Service is plain HTTP and the access key travels in the URL. Anyone on the network path can read it. See [DEPLOYMENT.md §8](DEPLOYMENT.md#8-security-posture-of-the-cloud-mode). |
+| Rate limiting | **None** | A visitor can grow the audit log on the pod's `emptyDir` until the container restarts. Costs the ledger, not a compromise. |

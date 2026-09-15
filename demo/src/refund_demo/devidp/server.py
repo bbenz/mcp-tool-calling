@@ -28,11 +28,12 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import html
 import secrets
 import time
 from dataclasses import dataclass, field
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 import anyio.to_thread
 import jwt
@@ -176,6 +177,22 @@ for resource <code>{resource}</code>.</p>
 """
 
 
+def _is_allowed_redirect_uri(redirect_uri: str) -> bool:
+    """Only loopback callbacks, per RFC 8252.
+
+    An unvalidated redirect_uri turns any authorization server into a code
+    exfiltration primitive: /authorize?...&redirect_uri=https://attacker.example
+    hands a live authorization code to whoever asked for it. A real server
+    matches against the client's registered list. This one accepts any loopback
+    callback, which is what RFC 8252 grants native clients and is all the demo
+    client and the scenarios ever use.
+    """
+    parsed = urlparse(redirect_uri)
+    if parsed.scheme != "http":
+        return False
+    return parsed.hostname in ("127.0.0.1", "localhost", "::1")
+
+
 async def authorize(request: Request) -> Response:
     params = request.query_params
     settings = get_settings()
@@ -195,6 +212,12 @@ async def authorize(request: Request) -> Response:
         return _error("invalid_request", "client_id is required")
     if not redirect_uri:
         return _error("invalid_request", "redirect_uri is required")
+    if not _is_allowed_redirect_uri(redirect_uri):
+        return _error(
+            "invalid_request",
+            "redirect_uri must be a loopback callback; refusing to hand an "
+            "authorization code to an unregistered host",
+        )
     if not challenge:
         return _error("invalid_request", "PKCE code_challenge is required")
     if challenge_method != "S256":
@@ -212,7 +235,12 @@ async def authorize(request: Request) -> Response:
             for key, emp in EMPLOYEES.items()
         )
         return HTMLResponse(
-            _LOGIN_PAGE.format(client_id=client_id, scope=scope, resource=resource, choices=choices)
+            _LOGIN_PAGE.format(
+                client_id=html.escape(client_id),
+                scope=html.escape(scope),
+                resource=html.escape(resource),
+                choices=choices,
+            )
         )
 
     if selected not in EMPLOYEES:

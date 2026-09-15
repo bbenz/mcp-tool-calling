@@ -183,10 +183,20 @@ Every realistic failure mode, how the presenter detects it **within seconds**, a
 
 | | |
 | --- | --- |
-| **Likelihood** | **High if not scheduled** — this is the one that costs money rather than credibility |
-| **Detection** | None. That is the problem: nothing fails, the bill just accrues |
+| **Likelihood** | **High if not scheduled** — this one costs money *and*, on plain HTTP, credibility |
+| **Detection** | None. That is the problem: nothing fails, the bill just accrues, and the endpoint stays reachable |
 | **Fallback** | `.\scripts\aks-down.ps1` / `./scripts/aks-down.sh` deletes the whole resource group — cluster, registry, load balancer, public IP, managed identity — and clears the stale kubeconfig entry. |
-| **Prevention** | Tear down the **same day**, before you leave the venue. The deploy script prints the teardown command in its final output for exactly this reason. Put a calendar reminder on the day you deploy, not the day after. |
+| **Prevention** | Tear down the **same day**, before you leave the venue. The deploy script prints the teardown command in its final output for exactly this reason. Put a calendar reminder on the day you deploy, not the day after. Cost is roughly **$0.10–0.12/hour**. |
+
+### R19 · The cloud link is shared over plain HTTP
+
+| | |
+| --- | --- |
+| **Likelihood** | Certain if you put the URL on a slide at a conference |
+| **Detection** | None in-band. Assume the key is public the moment the link is used on a shared network |
+| **Why it happens** | The Service is HTTP with no TLS, and the access key travels as `?k=` in the URL. Anyone on the path — venue Wi-Fi, a proxy, any transit hop — reads it from one request. They then have the whole app: run scenarios, **move the ledger digest you are about to show**, read the audit trail. It reaches nothing real and cannot pivot into Azure (`automountServiceAccountToken: false`). |
+| **Fallback** | Redeploy for a clean ledger and a fresh key — about 8 minutes, or under 2 if the cluster still exists. Or drop to mode 1, which needs no network at all. |
+| **Prevention** | Treat the link as **single-session and disposable**. For anything more exposed, add `loadBalancerSourceRanges` to `k8s/service.yaml`, make the Service internal and use `kubectl port-forward`, or front it with an HTTPS ingress. Full detail in [DEPLOYMENT.md §8](DEPLOYMENT.md#8-security-posture-of-the-cloud-mode). |
 
 ---
 

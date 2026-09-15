@@ -30,6 +30,7 @@ from typing import Any
 
 import anyio
 import anyio.to_thread
+import hmac
 import httpx
 from starlette.applications import Starlette
 from starlette.requests import Request
@@ -52,18 +53,43 @@ def _scenario_summary() -> list[dict[str, str]]:
 
 
 def _gate(request: Request) -> Response | None:
-    """Optional shared-secret gate. Empty key means no gate."""
-    key = get_settings().web_access_key
+    """Shared-secret gate.
+
+    An empty key means "no gate" on a laptop and under Compose, where the
+    address is local. On a deployment that sets WEB_REQUIRE_ACCESS_KEY it means
+    *refuse*, not *allow*: a missing or mis-keyed Secret used to remove
+    authentication silently, with the pod still reporting healthy and nothing
+    in the logs to say so. Failing closed turns that into a visible 503.
+    """
+    settings = get_settings()
+    key = settings.web_access_key
     if not key:
+        if settings.web_require_access_key:
+            return JSONResponse(
+                {
+                    "error": "refusing to serve without an access key",
+                    "detail": (
+                        "WEB_REQUIRE_ACCESS_KEY is set but WEB_ACCESS_KEY is empty. "
+                        "This deployment declares itself publicly addressable, so "
+                        "serving without a key would expose the whole app."
+                    ),
+                },
+                status_code=503,
+            )
         return None
     presented = request.headers.get("x-demo-key") or request.query_params.get("k")
-    if presented == key:
+    if hmac.compare_digest(presented or "", key):
         return None
     return JSONResponse({"error": "access key required"}, status_code=401)
 
 
 async def index(request: Request) -> Response:
-    if _gate(request) is not None:
+    if (blocked := _gate(request)) is not None:
+        # A 503 here means "no key configured on a public bind" -- an operator
+        # error, not a visitor error. Say which one it is instead of showing a
+        # lock screen that invites the visitor to find a key that cannot work.
+        if blocked.status_code == 503:
+            return blocked
         return HTMLResponse(_LOCKED_HTML, status_code=401)
     return HTMLResponse(PAGE)
 

@@ -116,6 +116,10 @@ Recorded because each one would have produced a misleading demo.
 | 13 | Both MCP servers called `streamable_http_app()` with no transport settings | **Every tool call failed with `421 Misdirected Request` in containers**, but only *after* a fully successful OAuth handshake — so it read as a token bug when it was a transport bug. The SDK auto-enables DNS rebinding protection for loopback servers and then allows only `localhost`-ish `Host` headers; under Compose the Host header is `mcp-a:8801` | Settings now build explicit `TransportSecuritySettings`. Protection stays **on**; `MCP_ALLOWED_HOSTS` extends the allowlist. Pinned by three tests |
 | 14 | `aks-up.ps1`'s `Invoke-Az` helper used `ValueFromRemainingArguments` | **The deploy script died on its first command**, before creating anything: `ValueFromRemainingArguments` does not stop PowerShell binding things that look like parameters, so `-o none` failed with *"the parameter name 'o' is ambiguous"* against `-OutVariable` / `-OutBuffer`. A pure syntax check cannot catch this — the script parses fine | The helper now takes a single `[string[]]` array and every call site passes `@('acr','build',...)` |
 | 15 | `az acr build` streamed its build log to a Windows console | **The deploy aborted with `UnicodeEncodeError: 'charmap' codec can't encode`** — *after* the image had been built and pushed successfully. `az` is a Python app; colorama writes the streamed log in cp1252 and dies on the first character it cannot map. `PYTHONIOENCODING=utf-8` does **not** fix it, because colorama wraps the console handle itself | `--no-logs` on the build. It still waits for the run and still fails loudly; the script prints the `az acr task logs` command to use when it does |
+| 16 | The web access-key gate treated an empty key as "no gate" | **A missing or mis-keyed Secret removed authentication entirely** on the public deployment, with the pod still reporting healthy, nothing in the logs, and no visible difference — every route served anonymously to the internet. `deployment.yaml` also marked the `secretKeyRef` `optional: true`, so the pod scheduled happily without it | `WEB_REQUIRE_ACCESS_KEY=1` is set on the public deployment and makes an empty key return **503**, not 200. Laptop and Compose runs are unaffected. `/health` still answers so probes survive an operator error. Proven on a live public endpoint by deleting the Secret |
+| 17 | `BIND_HOST: "0.0.0.0"` lived in the ConfigMap, which all five containers read | The five containers share one network namespace, so only `web` needs a public bind — but **`devidp` was listening on the pod IP**, reachable from any other pod in the cluster, with no NetworkPolicy in the way. That is an unauthenticated token-minting oracle that will issue a token for an arbitrary audience. It also made the comment in `service.yaml` untrue | `BIND_HOST` moved out of the ConfigMap onto each container: `127.0.0.1` for the four internal ones, `0.0.0.0` for `web`. Probes for the four had to become `exec` curl against localhost, because a kubelet `httpGet` targets the pod IP. Verified on a live pod: `podIP:8800` refuses, `localhost:8800` answers |
+| 18 | `/authorize` interpolated query parameters into HTML and never validated `redirect_uri` | Reflected XSS via `client_id`/`scope`/`resource`, and an **open redirect that hands a live authorization code to any host** — the exact failure this talk argues against, sitting inside the demo. Not internet-reachable in the shipped topology, which is the only reason it was not worse | `html.escape()` on the three interpolated values, and `redirect_uri` restricted to loopback callbacks per RFC 8252. Pinned by 10 tests |
+| 19 | The access key was compared with `==` | Not constant-time. Not practically exploitable — a 32-character CSPRNG secret behind a load balancer — but a real defect in code that argues about careful authorization | `hmac.compare_digest` |
 
 ---
 
@@ -123,7 +127,7 @@ Recorded because each one would have produced a misleading demo.
 
 ### Verified on this machine
 
-- All 143 automated tests pass (`pytest tests/ -q`).
+- All 164 automated tests pass (`pytest tests/ -q`).
 - All 14 stage scenarios pass (`python -m refund_demo.scenarios run-all`).
 - Full protocol trace: 401 challenge → PRM → AS metadata → PKCE S256 → RFC 8707 resource indicator → audience-bound token → `tools/call`.
 - On-behalf-of exchange, delegated identity preservation, and upstream re-enforcement.
@@ -134,7 +138,7 @@ Recorded because each one would have produced a misleading demo.
 - **The clean-ledger digest is identical on the laptop, in Compose, and on AKS** (`211597d92491…`); a full scenario run lands on `a24b01f92f67` on both the laptop and the cluster.
 - **`readOnlyRootFilesystem: true` holds in practice** — no container restarted.
 - Image layout: source at `/app/src`, `.local` resolving to `/app/.local`, `.venv` and `tests` excluded, and the non-root user able to write the state directory.
-- Compose file syntax (`docker compose config`), Dockerfile lint (`docker build --check`, no warnings), and cross-file agreement between Compose, Kubernetes and the Dockerfile (48 tests).
+- Compose file syntax (`docker compose config`), Dockerfile lint (`docker build --check`, no warnings), and cross-file agreement between Compose, Kubernetes and the Dockerfile (57 tests).
 - Both teardown scripts on a non-existent resource group, and identical registry-name derivation between PowerShell and bash.
 
 ### NOT verified — state this plainly if asked

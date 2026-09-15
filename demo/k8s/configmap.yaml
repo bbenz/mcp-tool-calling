@@ -21,9 +21,13 @@ data:
   # there the Host header is a service name. Add entries here if these
   # containers are ever split into separate pods.
 
-  # devidp binds loopback by default, which is right on a laptop and wrong for
-  # the container that has to answer the Service.
-  BIND_HOST: "0.0.0.0"
+  # NOTE: BIND_HOST is deliberately NOT set here. This ConfigMap is consumed by
+  # all five containers via envFrom, and a blanket BIND_HOST=0.0.0.0 would make
+  # devidp, mcp-a, mcp-b and upstream listen on the pod IP -- reachable from any
+  # other pod in the cluster, with no NetworkPolicy in the way. Only the web
+  # container needs to answer the Service, so it sets BIND_HOST on its own env
+  # block in deployment.yaml. The other four keep their loopback defaults, which
+  # is what makes the claim in service.yaml actually true.
 
   # Reset mutates the ledger. It stays off on anything with a public address;
   # use scripts/aks-down.ps1 and redeploy to get a clean ledger.
