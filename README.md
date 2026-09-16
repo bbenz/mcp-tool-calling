@@ -200,3 +200,15 @@ All fixtures are synthetic; there is no real customer data. No secret, token, au
 The web interface reports decisions and makes none. Its reset endpoint is disabled over HTTP by default and refused outright in `entra` mode, and the AKS deployment generates a per-deployment access key. If that key is ever absent, the public deployment returns **503 rather than serving to everyone** — an empty key used to mean "no gate", which is the kind of fail-open default this talk exists to argue against.
 
 **The cloud mode is still plain HTTP**, so the key is readable by anyone on the network path. That is the one finding not fixed, and [DEPLOYMENT.md §8](docs/DEPLOYMENT.md#8-security-posture-of-the-cloud-mode) says so plainly along with the mitigations.
+
+Several things in here are insecure deliberately, because the demo needs something to attack. [SECURITY.md](SECURITY.md) lists which ones and why, so you can tell them apart from a real defect before reporting one.
+
+---
+
+## Contributing
+
+Fork it for your own talk without asking — that is what it is for, and
+[prompts/](prompts/README.md) exists so you can regenerate it rather than
+hand-edit it. If you want to change *this* copy, [CONTRIBUTING.md](CONTRIBUTING.md)
+explains what the demo is optimised for and what the tests will not let you
+break. This project follows the [Microsoft Open Source Code of Conduct](CODE_OF_CONDUCT.md).
