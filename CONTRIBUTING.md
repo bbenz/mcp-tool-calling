@@ -113,3 +113,8 @@ subscription IDs, endpoints, or keys — the docs use placeholders throughout.
 You do not need permission and you do not need a pull request. Fork it, and see
 [prompts/](prompts/README.md) — the prompts that generated this repository are
 included so it can be re-targeted rather than hand-edited.
+
+## Licence
+
+This project is under the [MIT License](LICENSE.md). By contributing, you agree
+that your contribution is licensed under the same terms.

@@ -212,3 +212,5 @@ Fork it for your own talk without asking — that is what it is for, and
 hand-edit it. If you want to change *this* copy, [CONTRIBUTING.md](CONTRIBUTING.md)
 explains what the demo is optimised for and what the tests will not let you
 break. This project follows the [Microsoft Open Source Code of Conduct](CODE_OF_CONDUCT.md).
+
+Licensed under the [MIT License](LICENSE.md).
