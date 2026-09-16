@@ -138,6 +138,7 @@ Every scenario prints the ledger digest **before and after**, so "nothing happen
 | [COMPATIBILITY-RECORD.md](docs/COMPATIBILITY-RECORD.md) | Verified versions, SDK API facts, defects found |
 | [CLIENT-APPROVAL-CHECKLIST.md](docs/CLIENT-APPROVAL-CHECKLIST.md) | Manual checks no test can prove |
 | [APPENDIX.md](docs/APPENDIX.md) | Sequence diagrams, sanitized audit records, KQL, design trade-offs, sources |
+| [prompts/](prompts/README.md) | The prompts that generated this repo, for regenerating or re-targeting it |
 
 ---
 
@@ -166,6 +167,7 @@ demo/
   infra/                 # Bicep -- compiles; never deployed
   identity/              # Entra registration scripts -- never executed
 docs/
+prompts/                 # the prompts that generated all of the above
 ```
 
 ---
