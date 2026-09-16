@@ -215,7 +215,7 @@ traces
 
 `devidp` is a **real** OAuth 2.1 authorization server: RS256 with a published JWKS, PKCE **S256 only** (`plain` refused), mandatory RFC 8707 resource indicators, single-use authorization codes with a 120-second TTL, and RFC 7523 jwt-bearer for on-behalf-of. Critically, its tokens are validated by the **same `TokenValidator`** that handles Entra tokens — so every boundary demonstrated is genuine, not simulated.
 
-Trade-off: it is not Entra, and `AUTH_MODE=entra` has never been executed. Stated plainly in `COMPATIBILITY-RECORD.md` §4.
+Trade-off: it is not Entra, and `AUTH_MODE=entra` has never been executed. Stated plainly in the README's honest-limitations list.
 
 **`devidp` must never run in a cloud environment.** It issues tokens to anyone who asks.
 
@@ -225,7 +225,7 @@ Stage reliability. `client.py` reads the `Location` header rather than launching
 
 ### Why `validate_token_resource=False`
 
-The SDK compares `AccessToken.resource` against `resource_server_url` (an HTTP URL). Our tokens are bound to an App ID URI (`api://refund-mcp-a`) — legitimately different strings. Audience validation is not weakened; `tokens.py` enforces it on every request. Full reasoning in `COMPATIBILITY-RECORD.md` §2.
+The SDK compares `AccessToken.resource` against `resource_server_url` (an HTTP URL). Our tokens are bound to an App ID URI (`api://refund-mcp-a`) — legitimately different strings. Audience validation is not weakened; `tokens.py` enforces it on every request, rejecting anything else with `AUTH_WRONG_AUDIENCE`. This is the configuration the SDK documents for servers that validate the audience themselves, and it is pinned by `tests/test_tokens.py::test_token_for_resource_b_is_rejected_at_resource_a` and the `wrong-audience` scenario.
 
 ### Why denials raise `ToolError`
 
@@ -293,6 +293,6 @@ A key replayed with a **different** amount originally returned the first refund 
 
 **In this repository**
 
-- `docs/COMPATIBILITY-RECORD.md` — verified versions, SDK API facts, defects found
-- `docs/COVERAGE-MATRIX.md` — every promise → implementation → test → evidence
-- `docs/CONTROL-MAP.md` — the one-page takeaway
+- `README.md` — the control table, and the honest-limitations list
+- `docs/SETUP.md` — prerequisites, bootstrap, configuration, troubleshooting
+- `docs/DEPLOYMENT.md` — the four ways to run it, and the cloud security posture

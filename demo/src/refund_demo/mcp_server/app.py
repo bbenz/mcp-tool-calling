@@ -156,7 +156,7 @@ mcp = MCPServer(
         required_scopes=[get_settings().scope_read],
         # Our TokenValidator checks the token's audience itself against this
         # resource's accepted identifiers, which is the configuration the SDK
-        # documents for this flag. See docs/COMPATIBILITY-RECORD.md for why the
+        # documents for this flag. See docs/APPENDIX.md section D for why the
         # RFC 8707 resource indicator and the Entra audience are not the same
         # string.
         validate_token_resource=False,

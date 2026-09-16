@@ -390,4 +390,3 @@ The cloud mode puts a demo on a public IP. A security review of that exposure fo
 
 - [SETUP.md](SETUP.md) — prerequisites, bootstrap, configuration, troubleshooting
 - [RUNBOOK.md](RUNBOOK.md) — timed presenter schedule and recovery
-- [RISKS-AND-FALLBACKS.md](RISKS-AND-FALLBACKS.md) — failure modes including the deployment ones

@@ -17,10 +17,10 @@ insecure *on purpose*, because the demo needs something to attack.
 
 | Behaviour | Why it is there |
 | --- | --- |
-| `devidp` mints tokens for whatever audience is asked for, with no real user authentication | It is a local development authorization server that stands in for Entra so the demo runs offline. It binds to `127.0.0.1` and must never be exposed. See defect 17 in [COMPATIBILITY-RECORD.md](docs/COMPATIBILITY-RECORD.md) for what happened the one time it was not. |
+| `devidp` mints tokens for whatever audience is asked for, with no real user authentication | It is a local development authorization server that stands in for Entra so the demo runs offline. It binds to `127.0.0.1` and must never be exposed — in Kubernetes it is deliberately not reachable from the rest of the cluster. |
 | Order `ORD-1005` contains a hostile instruction in its free-text notes | That is the prompt-injection fixture. The demo's whole claim is that this text reaches the model and still changes no authorization decision. |
 | Resource B accepts tokens that Resource A rejects | Resource B exists to be rejected. That is the `wrong-audience` scenario. |
-| `validate_token_resource=False` on the MCP server | The SDK's check compares the token's `resource` to an HTTP URL, while these tokens are bound to an App ID URI. Audience validation still happens, in `refund_demo.tokens.TokenValidator`, on every request. The reasoning is written out in [COMPATIBILITY-RECORD.md](docs/COMPATIBILITY-RECORD.md) §2. |
+| `validate_token_resource=False` on the MCP server | The SDK's check compares the token's `resource` to an HTTP URL, while these tokens are bound to an App ID URI. Audience validation still happens, in `refund_demo.tokens.TokenValidator`, on every request. The reasoning is written out in [APPENDIX.md §D](docs/APPENDIX.md#why-validate_token_resourcefalse). |
 | The optional AKS deployment serves plain HTTP with the access key in the URL | Known, documented, and deliberately not fixed — see [DEPLOYMENT.md](docs/DEPLOYMENT.md) §8, which also explains how to reduce the exposure. Treat any such deployment as disposable. |
 | `demo/infra` Bicep and `demo/identity` Entra scripts | Never executed. They compile and they are readable; that is the entire claim. `AUTH_MODE=entra` has never been run. |
 
@@ -39,10 +39,12 @@ example:
 - Anything in the optional Docker Compose or AKS paths that exposes more than
   §8 of DEPLOYMENT.md says it exposes.
 
-Findings of that kind have been taken seriously before: §3 of
-[COMPATIBILITY-RECORD.md](docs/COMPATIBILITY-RECORD.md) records the defects
-found during the build, including four security fixes made against a live
-endpoint.
+Findings of that kind have been taken seriously before: several security
+defects were found and fixed during the build, including four against a live
+endpoint — a fail-open access-key gate, an internally-reachable token issuer,
+an unescaped `/authorize` with an unvalidated `redirect_uri`, and a
+non-constant-time key comparison. The fixes are in the code and are pinned by
+tests.
 
 ## How to report
 

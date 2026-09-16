@@ -20,8 +20,8 @@ This is the operational document: what to run, when to stop, and what to do when
 - [ ] `.\scripts\stop-all.ps1` then `.\scripts\start-all.ps1 -Reset`
 - [ ] `.\scripts\check.ps1` → must end with **`READY`** (207 tests, 14/14 scenarios)
 - [ ] Full rehearsal with a timer. Note your actual time at each stop-time.
-- [ ] `docs/CLIENT-APPROVAL-CHECKLIST.md` sections A–D if you are using a live client
-- [ ] Re-verify `docs/COMPATIBILITY-RECORD.md` §5. **Do not upgrade `mcp` inside 72 hours** unless something is broken.
+- [ ] If you are using a live client, confirm by hand that the consent prompt and the per-call approval dialog both appear — no automated test can prove a UI worked.
+- [ ] **Do not upgrade `mcp` inside 72 hours** of the talk unless something is broken.
 
 ### T-60 minutes
 
@@ -65,10 +65,10 @@ Stop-times are **cumulative elapsed**. If you are past a segment's stop-time by 
 | **Stop-time** | 02:00 |
 | **Tier** | A |
 | **Window** | Slides |
-| **Actions** | Show the annotated trust-boundary diagram ([CONTROL-MAP.md](CONTROL-MAP.md)). Name the three distinct things: authentication, authorization, approval. |
+| **Actions** | Show the annotated trust-boundary diagram from your slides. Name the three distinct things: authentication, authorization, approval. |
 | **Commands** | none |
 | **Evidence** | Diagram with red boundaries on client and model |
-| **Fallback** | The diagram is also in `docs/CONTROL-MAP.md` — open the markdown |
+| **Fallback** | Talk it through against the control table in `README.md` — same four actors, same ownership |
 | **Hard rule** | Do not demo here. Do not apologise for the size of the topic. |
 
 ### Segment 2 · 02:00–07:00 · Protocol trace
@@ -183,13 +183,13 @@ Decide **before** you are under pressure.
 | `IDEMPOTENCY_KEY_REUSED` | Reason code printed | Correct behaviour from a re-run. Say so, then `.\scripts\reset.ps1`. |
 | Conference Wi-Fi dies | Anything network-bound stalls | **Nothing on the critical path needs the network.** Foundry falls back to the labelled offline path. Keep going. |
 | Live client will not authenticate | Sign-in > 20 s | Abandon the client. It is Tier B. Every claim it supports is proven by `scenario.ps1`. |
-| Consent prompt does not reappear | No dialog on connect | Cached token. Do not debug on stage — use `docs/CLIENT-APPROVAL-CHECKLIST.md` §D after the talk. |
+| Consent prompt does not reappear | No dialog on connect | Cached token. Do not debug on stage — clear the client's cached authorization and re-check after the talk. |
 | Foundry throttled or slow | > 3 s with no output | Offline path returns immediately and labels itself. Read the label aloud. |
 | Model refuses the injection | Model output differs from rehearsal | **Expected and fine.** The harness forces the call anyway. Say: *"the model's answer isn't the boundary."* |
 | Content filter blocks the assessment | `assessment_was_blocked_by_content_filter: True` | **Expected in cloud mode, and worth a sentence.** The platform refused the prompt — say *platform*, not *model*. Then force the call and show the identical denial. |
 | Services "healthy" but code changes do nothing | `start-all` says all healthy, yet behaviour is stale | Orphaned processes from an earlier run still hold 8800–8803, and `start-all` health-checked *those*. `stop-all` only knows its own PIDs. Recover: `Get-NetTCPConnection -LocalPort 8800 -State Listen` (repeat for 8801–8803), `Stop-Process -Id <pid> -Force` for each, then `start-all`. |
 | Text too small from the back of the room | Someone squints | Click **A+** in the page header, or press `+` / `-` / `0` on the page. The size persists across reloads. |
-| Total terminal loss | Obvious | Slides + `docs/COVERAGE-MATRIX.md`. Every claim has a named scenario and test; read the expected evidence column. |
+| Total terminal loss | Obvious | Slides alone. Every claim maps to a named scenario and a test — state the claim, name the scenario, and say what the evidence would have been. |
 
 ---
 

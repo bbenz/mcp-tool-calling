@@ -96,9 +96,8 @@ If one of these fails, the test is probably right:
   like something you would say out loud.
 - Comments explain *why*, not *what*. The code is already the what.
 - Documentation is prose, not bullet soup, and says plainly when something is
-  unverified. [COMPATIBILITY-RECORD.md](docs/COMPATIBILITY-RECORD.md) keeps a
-  "what is verified, and what is not" section for exactly this reason — please
-  keep it accurate rather than flattering.
+  unverified. The README keeps an **Honest limitations** section for exactly
+  this reason — please keep it accurate rather than flattering.
 - Denials carry a reason code and a rule ID. A new denial path without both is
   invisible on stage.
 

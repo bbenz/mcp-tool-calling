@@ -183,7 +183,7 @@ There is no secret and no token in this file. The client discovers the authoriza
 | Version | `__________` ← fill in at rehearsal, re-check the morning of the talk |
 | Verified on | `__________` |
 
-Two things must be confirmed by hand, because no automated test can prove a UI worked — use `docs/CLIENT-APPROVAL-CHECKLIST.md`.
+Two things must be confirmed by hand, because no automated test can prove a UI worked: that the client shows a consent prompt on first connect, and that it shows a per-call approval dialog for the write tool.
 
 ⚠️ **Redirect URIs are an open item.** The exact callback URI your client uses could not be verified without a live client. If registration fails, read the URI out of the client's own error message and register that. See `demo/identity/README.md`.
 

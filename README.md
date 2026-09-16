@@ -88,8 +88,6 @@ Red is outside your control **even though it is part of your system**. The clien
 | Foundry model | You, but inputs are hostile | *What would a reasonable analyst advise?* | **Nothing. It enforces nothing.** |
 | Platform content filter | The model platform — **not you** | *Is this prompt hostile?* | Whether this principal may refund this order |
 
-Full detail, with denial behaviour and limitations: **[docs/CONTROL-MAP.md](docs/CONTROL-MAP.md)**.
-
 ---
 
 ## Seven things to take home
@@ -129,14 +127,9 @@ Every scenario prints the ledger digest **before and after**, so "nothing happen
 | Document | For |
 | --- | --- |
 | **[SETUP.md](docs/SETUP.md)** | Prerequisites, bootstrap, configuration, troubleshooting |
-| **[CONTROL-MAP.md](docs/CONTROL-MAP.md)** | The one-page attendee takeaway |
-| **[COVERAGE-MATRIX.md](docs/COVERAGE-MATRIX.md)** | Every promise → implementation → test → evidence |
 | [DEPLOYMENT.md](docs/DEPLOYMENT.md) | Four ways to run it: scripts, web UI, Docker Compose, AKS |
 | [RUNBOOK.md](docs/RUNBOOK.md) | Presenter: timed schedule, tiers, stop-times, recovery |
 | [ONSTAGE-SCRIPT.md](docs/ONSTAGE-SCRIPT.md) | Presenter: literal prompts and narration |
-| [RISKS-AND-FALLBACKS.md](docs/RISKS-AND-FALLBACKS.md) | 21 failure modes, detection, prepared fallback |
-| [COMPATIBILITY-RECORD.md](docs/COMPATIBILITY-RECORD.md) | Verified versions, SDK API facts, defects found |
-| [CLIENT-APPROVAL-CHECKLIST.md](docs/CLIENT-APPROVAL-CHECKLIST.md) | Manual checks no test can prove |
 | [APPENDIX.md](docs/APPENDIX.md) | Sequence diagrams, sanitized audit records, KQL, design trade-offs, sources |
 | [prompts/](prompts/README.md) | The prompts that generated this repo, for regenerating or re-targeting it |
 
@@ -187,7 +180,7 @@ Stated here because a talk about authorization should not overclaim.
 - **The client approval UI is verified by hand only.** No automated test can prove a dialog appeared.
 - **A cancelled request is client-only evidence.** The server never saw it, so it cannot show you a record of refusing it.
 
-Full list: [COVERAGE-MATRIX.md](docs/COVERAGE-MATRIX.md#not-proven--say-so-if-asked).
+What it deliberately does not attempt: [APPENDIX.md §E](docs/APPENDIX.md#e-things-this-demo-deliberately-does-not-solve).
 
 ---
 
