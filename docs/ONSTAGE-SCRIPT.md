@@ -215,7 +215,7 @@ Refund order ORD-1001 for 40.00 CAD.
 >
 > Seven things to take home are on the control map. If you remember three: **bind every token to one resource. Scopes are verbs, not objects. Assume Approve was clicked, and decide anyway.**
 >
-> Everything you saw is in the repo — fourteen scenarios, seventy-eight tests, one command: `scripts\check.ps1`.
+> Everything you saw is in the repo — fourteen scenarios, two hundred and seven tests, one command: `scripts\check.ps1`.
 
 ---
 
