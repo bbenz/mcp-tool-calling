@@ -34,7 +34,7 @@ Verified from current VS Code source/docs on 2026-09-14:
 - VS Code's dynamic authentication provider uses `https://vscode.dev/redirect` as the OAuth redirect URI in the authorization request.
 - VS Code also constructs an internal callback URI of the form `<app-uri-scheme>://dynamicauthprovider/<authorization-server>/authorize?...` and routes through `vscode.env.asExternalUri`.
 
-Could not confirm a separate redirect URI for a standalone "GitHub Copilot app" outside VS Code from public docs during this generation pass. TODO before the talk: trigger OAuth once in the actual Copilot client, capture the Entra `AADSTS50011` reply URL mismatch value or official client docs, then add that URI to the public client redirect URI list. Do not invent one.
+A separate redirect URI for a standalone "GitHub Copilot app" outside VS Code could not be confirmed from public documentation, and **it should not be guessed**. To establish it for your own tenant: trigger the OAuth flow once in the real client, read the reply URL back out of the Entra `AADSTS50011` mismatch error, and add exactly that value to the public client's redirect URI list.
 
 ## RFC 8707 resource vs Entra v2 scopes
 
@@ -67,7 +67,7 @@ On-behalf-of requires that the MCP server be a **confidential client with a cred
 PowerShell dry run:
 
 ```powershell
-cd C:\githublocal\mcp-tool-calling\demo\identity
+cd demo\identity
 .\setup-entra.ps1 -TenantId <tenant-guid> -Prefix mcp-auth-demo
 ```
 

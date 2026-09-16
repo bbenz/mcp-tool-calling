@@ -222,13 +222,13 @@ Pass `--no-access-key` / `-NoAccessKey` to leave the UI ungated. Only do that fo
 ### Optional: a live model, and a control you do not own
 
 ```powershell
-.\scripts\aks-up.ps1 -ResourceGroup bbenz_mcp_summit `
+.\scripts\aks-up.ps1 -ResourceGroup <resource-group> `
     -FoundryEndpoint https://<resource>.cognitiveservices.azure.com/ `
     -FoundryDeployment <deployment-name>
 ```
 
 ```bash
-./scripts/aks-up.sh --resource-group bbenz_mcp_summit \
+./scripts/aks-up.sh --resource-group <resource-group> \
     --foundry-endpoint https://<resource>.cognitiveservices.azure.com/ \
     --foundry-deployment <deployment-name>
 ```
@@ -342,7 +342,7 @@ Said plainly, because a talk about authorization should not overclaim.
 - **Mode 4 end to end, twice.** A real AKS cluster was created, the image was built by ACR Tasks, the pod rolled out with 5/5 containers ready and zero restarts, and **all 14 scenarios passed against the public IP**. The second run proved the security hardening below.
 - The clean-ledger digest is **identical in all three environments** — laptop, Compose and AKS (`211597d92491…`) — and a full scenario run lands on `a24b01f92f67` on both the laptop and the cluster.
 - The access-key gate on a public address: `401` without a key, `200` with one, and `/health` deliberately exempt so the Kubernetes probes keep working.
-- **A live Foundry model behind `assess_refund`, from inside the cluster.** The deployment in `bbenz_mcp_summit` calls a real `gpt-5.6-sol` deployment using an API key held in a Kubernetes Secret: a benign order returned model text with real token counts (~6.5 s), and the injected order was refused by the platform content filter and reported as `filtered: true` rather than as an outage. All 14 scenarios pass with it configured.
+- **A live Foundry model behind `assess_refund`, from inside the cluster.** The verified cloud deployment calls a real `gpt-5.6-sol` deployment using an API key held in a Kubernetes Secret: a benign order returned model text with real token counts (~6.5 s), and the injected order was refused by the platform content filter and reported as `filtered: true` rather than as an outage. All 14 scenarios pass with it configured.
 - **Secret containment, checked by reading the environment of every container in the running pod.** Only `mcp-a` has `FOUNDRY_API_KEY`; the other four see the empty ConfigMap defaults and nothing else.
 - **The hardening in §8, proven against the live public endpoint:** deleting the Secret returns `503` on every route instead of serving anonymously, `/health` still answers, and `devidp` refuses connections on the pod IP (`curl: (7)`) while still answering on loopback.
 - `readOnlyRootFilesystem: true` **does** hold in practice — the pod ran with no restarts, including with `exec` probes.
@@ -391,4 +391,3 @@ The cloud mode puts a demo on a public IP. A security review of that exposure fo
 - [SETUP.md](SETUP.md) — prerequisites, bootstrap, configuration, troubleshooting
 - [RUNBOOK.md](RUNBOOK.md) — timed presenter schedule and recovery
 - [RISKS-AND-FALLBACKS.md](RISKS-AND-FALLBACKS.md) — failure modes including the deployment ones
-- [EVENTS.md](EVENTS.md) — where this demo has been delivered

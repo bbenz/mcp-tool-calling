@@ -132,7 +132,6 @@ Every scenario prints the ledger digest **before and after**, so "nothing happen
 | **[CONTROL-MAP.md](docs/CONTROL-MAP.md)** | The one-page attendee takeaway |
 | **[COVERAGE-MATRIX.md](docs/COVERAGE-MATRIX.md)** | Every promise → implementation → test → evidence |
 | [DEPLOYMENT.md](docs/DEPLOYMENT.md) | Four ways to run it: scripts, web UI, Docker Compose, AKS |
-| [EVENTS.md](docs/EVENTS.md) | Where this demo has been delivered, and how to reuse it |
 | [RUNBOOK.md](docs/RUNBOOK.md) | Presenter: timed schedule, tiers, stop-times, recovery |
 | [ONSTAGE-SCRIPT.md](docs/ONSTAGE-SCRIPT.md) | Presenter: literal prompts and narration |
 | [RISKS-AND-FALLBACKS.md](docs/RISKS-AND-FALLBACKS.md) | 21 failure modes, detection, prepared fallback |

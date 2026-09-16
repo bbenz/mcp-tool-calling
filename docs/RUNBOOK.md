@@ -7,7 +7,7 @@ This is the operational document: what to run, when to stop, and what to do when
 
 > **The one rule:** cut *depth*, never *coverage*. Every promise in the published description must appear on screen, at minimum as a stated result with visible evidence. If you are behind, show the prepared artifact and move on. A skipped promise is a broken promise; a compressed one is just a shorter demo.
 
-> **Deployment mode for this delivery: the operator scripts, in PowerShell.** There are Docker Compose and AKS deployments in [DEPLOYMENT.md](DEPLOYMENT.md), and they are useful for other rooms — a remote audience, a workshop, someone else's laptop. They are **not** what you present from. A laptop running four Python processes has fewer failure modes than a cluster provisioned an hour earlier, and nothing in these 25 minutes needs a network. If you are adapting this talk for a different slot or a different room, [EVENTS.md](EVENTS.md) has the guidance on what to change.
+> **Deployment mode for this delivery: the operator scripts, in PowerShell.** There are Docker Compose and AKS deployments in [DEPLOYMENT.md](DEPLOYMENT.md), and they are useful for other rooms — a remote audience, a workshop, someone else's laptop. They are **not** what you present from. A laptop running four Python processes has fewer failure modes than a cluster provisioned an hour earlier, and nothing in these 25 minutes needs a network.
 
 ---
 

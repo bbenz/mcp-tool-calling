@@ -44,7 +44,7 @@ The scripts are generated for operator review and are not run by this agent.
 PowerShell:
 
 ```powershell
-cd C:\githublocal\mcp-tool-calling\demo\infra
+cd demo\infra
 .\deploy.ps1 -ResourceGroupName rg-mcp-auth-demo -Location canadacentral -AcrName <uniqueacr> -KeyVaultName <unique-kv> -Tag <image-tag> -Confirm
 ```
 
