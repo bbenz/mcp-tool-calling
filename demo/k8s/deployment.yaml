@@ -170,6 +170,18 @@ spec:
             # four override it back to loopback below.
             - name: BIND_HOST
               value: "0.0.0.0"
+            # Downward API, for the "where is this running" badge in the header.
+            # Every service URL on the page is loopback in every environment, so
+            # without this a room cannot tell this cluster from a laptop. Works
+            # with automountServiceAccountToken: false -- fieldRef needs no token.
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
             # This deployment has a public IP, so an absent key must fail closed.
             - name: WEB_REQUIRE_ACCESS_KEY
               value: "1"

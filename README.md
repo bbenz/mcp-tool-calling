@@ -13,7 +13,7 @@ Everything here runs locally in about ten minutes, with no Azure subscription an
 cd demo
 .\scripts\bootstrap.ps1
 .\scripts\start-all.ps1 -Reset
-.\scripts\check.ps1          # 207 tests + 14 scenarios -> READY
+.\scripts\check.ps1          # 217 tests + 14 scenarios -> READY
 ```
 
 **Bash** (Git Bash on Windows, Linux, macOS, WSL):
@@ -23,7 +23,7 @@ cd demo
 chmod +x scripts/*.sh        # only if your clone lost the executable bit
 ./scripts/bootstrap.sh
 ./scripts/start-all.sh --reset
-./scripts/check.sh           # 207 tests + 14 scenarios -> READY
+./scripts/check.sh           # 217 tests + 14 scenarios -> READY
 ```
 
 Every command must be run from the `demo/` directory. A `.ps1` cannot be run by bash and a `.sh` cannot be run by PowerShell — use the twin for the shell you are in. WSL needs its own `bootstrap.sh`, because a Windows `.venv` will not load on Linux; see [SETUP.md](docs/SETUP.md#choosing-a-shell-and-a-note-on-wsl).
@@ -153,7 +153,7 @@ demo/
     briefings.py         # what each scenario sends, expects, and why
     client.py            # OAuth client + protocol trace
     scenarios.py         # 14 named stage scenarios
-  tests/                 # 207 tests
+  tests/                 # 217 tests
   scripts/               # PowerShell + bash operator commands
   docker/                # Dockerfile + Compose -- five containers, one image
   k8s/                   # AKS manifests -- one pod, five containers
@@ -174,7 +174,7 @@ Stated here because a talk about authorization should not overclaim.
 - **`AUTH_MODE=entra` has never been executed.** No tenant was authorized for this build. The default and the rehearsed path is the local authorization server, which is a real OAuth server validated by the same code.
 - **`demo/infra` has never been deployed.** The Bicep compiles; that is the entire claim.
 - **The live model is verified, on the laptop and in the cluster.** `assess_refund` calls a real `gpt-5.6-sol` deployment — benign orders return model text, injected ones are refused by the platform content filter. In AKS the credentials live in a Kubernetes Secret that only the MCP server container mounts. What is *not* verified is workload identity: the deployment uses an API key, because the account that built this cannot create role assignments on that model resource. [DEPLOYMENT.md §7](docs/DEPLOYMENT.md#7-what-is-verified-and-what-is-not).
-- **The AKS deployment is verified.** A real cluster was created, the image was built by ACR Tasks, the pod rolled out 5/5 ready with zero restarts, and all 14 scenarios passed against the public IP with a ledger digest identical to the laptop. Manifests are pinned by 63 tests. [DEPLOYMENT.md §7](docs/DEPLOYMENT.md#7-what-is-verified-and-what-is-not).
+- **The AKS deployment is verified.** A real cluster was created, the image was built by ACR Tasks, the pod rolled out 5/5 ready with zero restarts, and all 14 scenarios passed against the public IP with a ledger digest identical to the laptop. Manifests are pinned by 64 tests. [DEPLOYMENT.md §7](docs/DEPLOYMENT.md#7-what-is-verified-and-what-is-not).
 - **`aks-up.sh` has never driven a real deployment.** The verified runs used `aks-up.ps1`; the bash twin is syntax-checked and command-for-command equivalent.
 - **The cloud mode has no TLS.** The access key travels in the URL over plain HTTP. Treat any shared link as disposable — [DEPLOYMENT.md §8](docs/DEPLOYMENT.md#8-security-posture-of-the-cloud-mode).
 - **The client approval UI is verified by hand only.** No automated test can prove a dialog appeared.

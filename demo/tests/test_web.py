@@ -59,6 +59,31 @@ def test_an_unknown_scenario_is_a_404_not_a_500(client):
     assert client.post("/api/scenarios/not-a-scenario/run").status_code == 404
 
 
+def test_services_reports_where_it_is_running(client, monkeypatch):
+    """The page's service URLs are loopback everywhere; this is what disambiguates them."""
+    from refund_demo import runtime
+
+    runtime.describe.cache_clear()
+    monkeypatch.setenv("KUBERNETES_SERVICE_HOST", "10.0.0.1")
+    monkeypatch.setenv("POD_NAME", "refund-demo-7c9f")
+    try:
+        body = client.get("/api/services").json()
+        assert set(body) == {"services", "runtime"}
+        assert set(body["services"]) == {"devidp", "mcp-a", "mcp-b", "upstream"}
+        assert body["runtime"]["platform"] == "kubernetes"
+        assert "refund-demo-7c9f" in body["runtime"]["detail"]
+        assert body["runtime"]["loopback_note"]
+    finally:
+        runtime.describe.cache_clear()
+
+
+def test_the_page_has_somewhere_to_put_the_runtime_badge_and_note(client):
+    """Guards the two element ids the services() poll writes into."""
+    body = client.get("/").text
+    assert 'id="env"' in body
+    assert 'id="loopback"' in body
+
+
 def test_reset_over_http_is_refused_by_default(client, fresh_settings):
     response = client.post("/api/reset")
     assert response.status_code == 403

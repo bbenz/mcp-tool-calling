@@ -40,6 +40,7 @@ from starlette.routing import Route
 from .. import audit, ledger, reset as reset_module
 from ..briefings import ABOUT, BRIEFINGS, Briefing
 from ..config import get_settings
+from ..runtime import describe as describe_runtime
 from ..scenarios import CLAIMS, SCENARIOS, run_one
 from ..telemetry import configure
 
@@ -211,7 +212,11 @@ async def api_audit(request: Request) -> Response:
 
 
 async def api_services(request: Request) -> Response:
-    """Health of the four services this page depends on."""
+    """Health of the four services this page depends on.
+
+    Carries the runtime description too, because the URLs below are loopback in
+    every environment: without it a room cannot tell the cluster from a laptop.
+    """
     if (blocked := _gate(request)) is not None:
         return blocked
     settings = get_settings()
@@ -229,7 +234,7 @@ async def api_services(request: Request) -> Response:
                 out[name] = {"url": url, "healthy": response.status_code == 200}
             except httpx.HTTPError as exc:
                 out[name] = {"url": url, "healthy": False, "error": type(exc).__name__}
-    return JSONResponse(out)
+    return JSONResponse({"services": out, "runtime": describe_runtime()})
 
 
 async def api_reset(request: Request) -> Response:
@@ -334,6 +339,13 @@ PAGE = """<!doctype html>
   .kv{display:grid;grid-template-columns:auto 1fr;gap:.35rem .9rem;font-size:1rem}
   .kv dt{color:var(--dim)} .kv dd{margin:0;word-break:break-all}
   .note{color:var(--dim);font-size:.9rem;margin-top:.8rem;line-height:1.5}
+  /* Where this page is running. Loud on purpose: every service URL on this
+     page is loopback in every environment, so this badge is the only thing
+     distinguishing a cluster from a laptop at the back of a room. */
+  .env{font-size:.95rem;padding:.2rem .7rem;border-radius:5px;border:1px solid var(--accent);
+       color:var(--accent);white-space:nowrap}
+  .env.k8s{border-color:var(--ok);color:var(--ok)}
+  .env .where{color:var(--dim);margin-left:.45rem;font-size:.85rem}
   .dot{display:inline-block;width:.55rem;height:.55rem;border-radius:50%;margin-right:.4rem}
   .up{background:var(--ok)} .down{background:var(--bad)}
   /* Expanders. A room reads this page without narration as often as with it,
@@ -368,6 +380,7 @@ PAGE = """<!doctype html>
   <h1>Who Can Call This MCP Tool?</h1>
   <span class="sub">OAuth &middot; resource binding &middot; runtime policy &mdash; synthetic data only</span>
   <span class="zoom">
+    <span class="env" id="env" title="Where this page is running">&hellip;</span>
     <span class="sub" id="svc" style="margin-right:.6rem"></span>
     <button onclick="zoom(-2)" title="Smaller text">A&minus;</button>
     <button onclick="zoom(2)" title="Larger text">A+</button>
@@ -393,6 +406,7 @@ PAGE = """<!doctype html>
     <div class="note" id="ledgermeta"></div>
     <h2 style="margin-top:1.2rem">Last result</h2>
     <dl class="kv" id="detail"><dt>&mdash;</dt><dd>run a scenario</dd></dl>
+    <p class="note" id="loopback"></p>
   </section>
   <section style="grid-column:1/-1">
     <h2>Audit trail</h2>
@@ -515,8 +529,16 @@ async function loadAudit(n){
 async function services(){
   try{
     const d = await (await fetch(q('/api/services'))).json();
-    $('svc').innerHTML = Object.entries(d).map(([n,v]) =>
+    $('svc').innerHTML = Object.entries(d.services).map(([n,v]) =>
       `<span class="dot ${v.healthy?'up':'down'}"></span>${esc(n)}`).join('&nbsp;&nbsp;');
+    const r = d.runtime || {};
+    const badge = $('env');
+    badge.className = 'env' + (r.platform === 'kubernetes' ? ' k8s' : '');
+    badge.title = r.full || '';
+    badge.innerHTML = esc(r.label || '') +
+      (r.detail ? `<span class="where">${esc(r.detail)}</span>` : '');
+    const note = $('loopback');
+    if (note && r.loopback_note) note.textContent = r.loopback_note;
   }catch(e){ $('svc').textContent = 'service health unavailable'; }
 }
 boot(); setInterval(services, 10000);

@@ -435,6 +435,23 @@ def test_the_mcp_server_still_binds_loopback_after_gaining_its_own_env(container
     assert _env_of(containers["mcp-a"])["BIND_HOST"] == "127.0.0.1"
 
 
+def test_web_learns_its_pod_and_node_from_the_downward_api(containers):
+    """The runtime badge needs these, and fieldRef is the only way to get them.
+
+    automountServiceAccountToken is false, so nothing here can ask the API
+    server; if these are dropped the badge silently degrades to a bare
+    "Kubernetes" with no pod or node.
+    """
+    env = {e["name"]: e for e in containers["web"].get("env", [])}
+    paths = {
+        "POD_NAME": "metadata.name",
+        "NODE_NAME": "spec.nodeName",
+    }
+    for name, field_path in paths.items():
+        assert name in env, f"{name} is not supplied to the web container"
+        assert env[name]["valueFrom"]["fieldRef"]["fieldPath"] == field_path
+
+
 @pytest.mark.parametrize("script", ["aks-up.ps1", "aks-up.sh"])
 def test_both_deploy_scripts_expose_the_same_foundry_flags(script):
     path = os.path.join(DEMO, "scripts", script)

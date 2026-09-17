@@ -44,7 +44,7 @@ Start the four services first, then add the view:
 
 Then open <http://localhost:8080>.
 
-The page shows the 14 scenarios with the claim each one makes, a PASS/FAIL badge, the full protocol trace for the selected run, the live ledger digest, and the audit tail. It is a single self-contained HTML document: no CDN, no build step, no external requests. A test asserts that, because a demo about trust boundaries should not fetch a script from someone else's CDN in front of an audience.
+The page shows the 14 scenarios with the claim each one makes, a PASS/FAIL badge, the full protocol trace for the selected run, the live ledger digest, the audit tail, and a badge in the header naming the platform it is running on. It is a single self-contained HTML document: no CDN, no build step, no external requests. A test asserts that, because a demo about trust boundaries should not fetch a script from someone else's CDN in front of an audience.
 
 ### The expanders
 
@@ -204,6 +204,26 @@ flowchart LR
 
 **Only `web` is exposed.** `devidp` mints tokens for anyone who asks. Putting a development issuer on a public address would undercut the entire point of the talk, so the Service selects port 8080 and nothing else.
 
+### Why the evidence still says `localhost`, and how the audience can tell
+
+On AKS, a `no-token` result reports its challenge exactly as it does on a laptop:
+
+```
+WWW-Authenticate: Bearer error="invalid_token", …
+                  resource_metadata="http://localhost:8801/.well-known/oauth-protected-resource"
+```
+
+That is correct, and it is deliberately not rewritten. `MCP_A_PUBLIC_URL` is three things at once: the address the client dials, the identifier Resource A publishes in its metadata, and an audience it will accept in a token. The four internal containers bind `127.0.0.1` and no Service selects them, so `http://localhost:8801` really is Resource A's only address — there is no external one to advertise. Substituting the load balancer's hostname for display would publish a discovery document pointing at a port nothing answers, and break audience validation for every scenario that passes. A talk about resource binding should not fake a resource identifier.
+
+The real problem was never the URL. It was that a projector showed nothing to distinguish a cluster from a laptop. So the UI states where it is running instead:
+
+- A **badge in the header** — `Kubernetes`, with the pod name beside it in dimmer type, outlined in green; grey `Docker Compose` under Compose, and `Local` when neither. Hovering adds the node name.
+- A **line under "Last result"** that explains the loopback addresses in terms of the platform that is actually hosting them.
+
+`web` learns its pod and node from the downward API (`POD_NAME`, `NODE_NAME` in `k8s/deployment.yaml`); Kubernetes itself is detected from `KUBERNETES_SERVICE_HOST`, not the service-account token, because this pod sets `automountServiceAccountToken: false`. Nothing in the badge reaches the API server, and it reads no Secret.
+
+On stage, point at the badge once and move on. It is the difference between claiming this is running on AKS and showing it.
+
 ### Security posture
 
 | Control | Setting |
@@ -317,6 +337,8 @@ Every setting is an environment variable; containers set them through the Compos
 | `WEB_ALLOW_RESET` | `0` | Enables `POST /api/reset`. Still refused in `entra` mode |
 | `WEB_ACCESS_KEY` | *(unset)* | Shared secret for every route except `/health` |
 | `MCP_ALLOWED_HOSTS` | *(unset)* | Extra `Host` header values the MCP transport accepts, comma separated (`mcp-a:*,mcp-b:*`). Loopback is always allowed |
+| `POD_NAME` | *(unset)* | Display only. Set from the downward API on AKS so the header badge can name the pod |
+| `NODE_NAME` | *(unset)* | Display only. Set from the downward API on AKS; shown in the badge tooltip |
 
 Issuer and resource URLs must stay consistent with each other. If a token says `aud=http://mcp-a:8801` and Resource A believes it is `http://localhost:8801`, every call fails audience validation — correctly, and confusingly.
 
@@ -336,7 +358,7 @@ Said plainly, because a talk about authorization should not overclaim.
 
 **Verified by execution:**
 
-- Modes 1 and 2, in PowerShell and bash: 207 tests, 14 scenarios, `READY` from `check`.
+- Modes 1 and 2, in PowerShell and bash: 217 tests, 14 scenarios, `READY` from `check`.
 - The web API end to end against live services: health, scenario listing, a real run, ledger digest, audit tail, and `403` on reset.
 - **Mode 3 end to end.** The image builds, all five containers report healthy, and **all 14 scenarios pass inside Compose** with the ledger moving only on the scenario that is supposed to move it.
 - **Mode 4 end to end, twice.** A real AKS cluster was created, the image was built by ACR Tasks, the pod rolled out with 5/5 containers ready and zero restarts, and **all 14 scenarios passed against the public IP**. The second run proved the security hardening below.
@@ -348,7 +370,7 @@ Said plainly, because a talk about authorization should not overclaim.
 - `readOnlyRootFilesystem: true` **does** hold in practice — the pod ran with no restarts, including with `exec` probes.
 - Image layout: source lands at `/app/src`, `.local` resolves to `/app/.local`, `.venv` and `tests` are excluded, and the non-root user can write the state directory.
 - Compose file syntax via `docker compose config`; Dockerfile lint via `docker build --check` (no warnings).
-- Manifest structure and cross-file agreement, via 63 tests that fail if Compose, Kubernetes and the Dockerfile stop describing the same demo.
+- Manifest structure and cross-file agreement, via 64 tests that fail if Compose, Kubernetes and the Dockerfile stop describing the same demo.
 - Teardown behaviour on a non-existent resource group, in both shells, and identical registry-name derivation between them.
 
 **Not verified:**

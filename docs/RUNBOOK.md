@@ -18,7 +18,7 @@ This is the operational document: what to run, when to stop, and what to do when
 ### T-24 hours
 
 - [ ] `.\scripts\stop-all.ps1` then `.\scripts\start-all.ps1 -Reset`
-- [ ] `.\scripts\check.ps1` → must end with **`READY`** (207 tests, 14/14 scenarios)
+- [ ] `.\scripts\check.ps1` → must end with **`READY`** (217 tests, 14/14 scenarios)
 - [ ] Full rehearsal with a timer. Note your actual time at each stop-time.
 - [ ] If you are using a live client, confirm by hand that the consent prompt and the per-call approval dialog both appear — no automated test can prove a UI worked.
 - [ ] **Do not upgrade `mcp` inside 72 hours** of the talk unless something is broken.
