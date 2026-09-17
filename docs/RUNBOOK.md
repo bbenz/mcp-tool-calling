@@ -18,7 +18,7 @@ This is the operational document: what to run, when to stop, and what to do when
 ### T-24 hours
 
 - [ ] `.\scripts\stop-all.ps1` then `.\scripts\start-all.ps1 -Reset`
-- [ ] `.\scripts\check.ps1` → must end with **`READY`** (217 tests, 14/14 scenarios)
+- [ ] `.\scripts\check.ps1` → must end with **`READY`** (221 tests, 14/14 scenarios)
 - [ ] Full rehearsal with a timer. Note your actual time at each stop-time.
 - [ ] If you are using a live client, confirm by hand that the consent prompt and the per-call approval dialog both appear — no automated test can prove a UI worked.
 - [ ] **Do not upgrade `mcp` inside 72 hours** of the talk unless something is broken.
@@ -110,6 +110,7 @@ Stop-times are **cumulative elapsed**. If you are past a segment's stop-time by 
 | **Window** | Terminal A |
 | **Commands** | `.\scripts\scenario.ps1 annotation-tampering` then `.\scripts\scenario.ps1 allowed-refund` |
 | **Expected** | Tampering: identical denial, same rule ID. Refund: `RFND-…` applied, `ledger: CHANGED`, retry `replayed=True`, `total_refunded_minor: 0 -> 4000`, `delegated_identity_preserved: True`, `upstream_audience: api://refund-upstream`. |
+| **If it says `refund_applied_by_this_run: False`** | You did not reset. The scenario still **passes** — it reuses one idempotency key, so this run is a retry and the ledger is unchanged. Recover the `0 -> 4000` moment with `.\scripts\reset.ps1`, or narrate it: *"it was already refunded, and asking again changed nothing."* |
 | **Evidence** | Ledger rises **once** across two calls; audience differs while subject is preserved |
 | **Code bookmark** | `mcp_server/app.py` tool annotations; `delegation.py::exchange_for_upstream` |
 | **Fallback** | If the live client cancel/approve cycle misbehaves, state it as client-only evidence and run `.\scripts\scenario.ps1 over-limit-denial` — a server denial no dialog can override. |

@@ -84,6 +84,20 @@ def test_the_page_has_somewhere_to_put_the_runtime_badge_and_note(client):
     assert 'id="loopback"' in body
 
 
+def test_the_page_runs_one_scenario_at_a_time(client):
+    """A queued click is still a real run, so the page must drop it, not queue it.
+
+    The server serializes with a lock, but a lock only orders work -- three fast
+    clicks were three runs waiting their turn. The busy flag refuses the second
+    one outright, and the ledger is refreshed before the buttons come back so the
+    next click is not made against a stale digest.
+    """
+    body = client.get("/").text
+    assert "let busy = false" in body
+    assert body.count("if (busy) return;") == 2  # run() and runAll()
+    assert "await refreshLedger();" in body
+
+
 def test_reset_over_http_is_refused_by_default(client, fresh_settings):
     response = client.post("/api/reset")
     assert response.status_code == 403

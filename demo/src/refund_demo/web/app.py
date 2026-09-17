@@ -485,20 +485,44 @@ function toggleAll(){
   b.textContent = open ? 'Collapse all' : 'Expand all';
 }
 
-async function run(name){
-  const btn = $('r-'+name); btn.disabled = true; btn.textContent = '...';
+async function runOne(name){
+  // Assumes the caller already owns the busy flag.
+  const btn = $('r-'+name); const label = btn.textContent; btn.textContent = '...';
   try{
     const r = await (await fetch(q(`/api/scenarios/${name}/run`), {method:'POST'})).json();
     $('b-'+name).innerHTML =
       `<span class="badge ${r.passed?'pass':'fail'}">${r.passed?'PASS':'FAIL'}</span>`;
-    show(r); refreshLedger();
-  } finally { btn.disabled = false; btn.textContent = 'Run'; }
+    show(r);
+    // Awaited, not fired and forgotten: the digest on screen must be current
+    // before the buttons come back, or the next click is made against a stale
+    // reading of the ledger.
+    await refreshLedger();
+  } finally { btn.textContent = label; }
+}
+
+// One run at a time, enforced here as well as on the server. The server already
+// serializes with a lock, but a queued click still executes when its turn comes
+// -- so three fast clicks were three real runs. Dropping them at the source is
+// what makes the page agree with what the server is doing.
+let busy = false;
+function setBusy(on){
+  busy = on;
+  scenarios.forEach(s => { const b = $('r-'+s.name); if (b) b.disabled = on; });
+  $('runall').disabled = on;
+}
+
+async function run(name){
+  if (busy) return;
+  setBusy(true);
+  try { await runOne(name); } finally { setBusy(false); }
 }
 
 async function runAll(){
-  const b = $('runall'); b.disabled = true;
-  for (const s of scenarios){ b.textContent = 'Running ' + s.name; await run(s.name); }
-  b.textContent = 'Run all 14'; b.disabled = false;
+  if (busy) return;
+  setBusy(true);
+  const b = $('runall');
+  try { for (const s of scenarios){ b.textContent = 'Running ' + s.name; await runOne(s.name); } }
+  finally { b.textContent = 'Run all 14'; setBusy(false); }
 }
 
 function show(r){

@@ -138,7 +138,12 @@ BRIEFINGS: dict[str, Briefing] = {
             "First call: a real <code>RFND-\u2026</code> id and <code>idempotent_replay: "
             "false</code>. Second call: <code>idempotent_replay: true</code>. The ledger "
             "digest changes <strong>once</strong>, and the refunded total rises by 4000 "
-            "minor units, not 8000."
+            "minor units, not 8000. The key is fixed rather than freshly minted, so this "
+            "holds across <em>runs</em> too: press Run as many times as you like and "
+            "exactly one refund will ever exist. Later runs report "
+            "<code>refund_applied_by_this_run: False</code> and a ledger that does not "
+            "move at all. <code>scripts/reset.ps1</code> clears the refunds table and "
+            "restores the first-call demonstration."
         ),
         "why": (
             "A demo that only ever says no proves nothing \u2014 a server that refuses "

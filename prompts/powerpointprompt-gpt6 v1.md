@@ -107,7 +107,7 @@ Revalidate this snapshot against source at generation time. These details delibe
 
 The wrong-audience positive control is important: the audience should understand that the token is intended for B, not merely broken. Include a matching-resource acceptance control **only with its actual supporting test or sanitized recorded evidence**. Label a unit-test result as such, not as a live server exchange. If the required control artifact is absent, show its intended outcome as **EXPECTED CONTROL - NOT CAPTURED** and flag the missing rehearsal evidence; do not claim `wrong-audience` printed it or change the demo to manufacture it.
 
-Counts and timings are not proof of correctness. The records currently describe 14 scenarios and 217 tests, but do not turn those historical values into claims about a new run. Prefer leaving test counts off the projected slides. Derive a scenario inventory statically if needed; report documented test counts as recorded, not freshly executed.
+Counts and timings are not proof of correctness. The records currently describe 14 scenarios and 221 tests, but do not turn those historical values into claims about a new run. Prefer leaving test counts off the projected slides. Derive a scenario inventory statically if needed; report documented test counts as recorded, not freshly executed.
 
 ## 5. Exact 25-minute run of show
 

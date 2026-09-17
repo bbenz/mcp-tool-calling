@@ -53,6 +53,13 @@ CLAIMS: dict[str, str] = {
     'token-passthrough-blocked': "Forwarding the MCP server's own token to the upstream API fails: the upstream has a different audience",
 }
 
+# The idempotency key `allowed-refund` uses, deliberately constant. It is what
+# makes "succeeds exactly once" true across repeated *runs* rather than merely
+# within one, so a double-click -- or a curious visitor on the public URL --
+# cannot spend ORD-1001 down to nothing. Exported so a test can assert it stays
+# stable instead of being minted per run.
+STAGE_REFUND_KEY = "stage-allowed-refund"
+
 
 @dataclass
 class ScenarioResult:
@@ -148,7 +155,15 @@ async def scenario_allowed_refund() -> ScenarioResult:
     s = get_settings()
     before = ledger.ledger_fingerprint()
     token = await _token("sam.agent", s.mcp_a_audience, f"{s.scope_read} {s.scope_write}")
-    key = f"stage-{uuid.uuid4().hex[:10]}"
+    # One business request, one key -- for the life of the ledger, not the life
+    # of this call. A fresh uuid here would make every *run* a new request, so
+    # three clicks on Run would spend ORD-1001's 12,000 down to nothing and the
+    # fourth would fail on balance. That is the exact opposite of the claim, and
+    # on a public URL with reset disabled it is unrecoverable. With a stable key
+    # the scenario is a retry after the first application: click it as fast and
+    # as often as you like and exactly one refund exists. `scripts/reset.ps1`
+    # clears the refunds table and restores the first-call demonstration.
+    key = STAGE_REFUND_KEY
     args = {"order_id": "ORD-1001", "amount_minor": 4_000, "currency": "CAD", "idempotency_key": key}
 
     first = _extract(await call_tool(mcp_url=s.mcp_a_public_url, access_token=token.access_token,
@@ -158,23 +173,46 @@ async def scenario_allowed_refund() -> ScenarioResult:
                                       tool="refund_order", arguments=args))
     after = ledger.ledger_fingerprint()
 
-    applied_once = (
-        first.get("idempotent_replay") is False
-        and second.get("idempotent_replay") is True
-        and mid.get("digest") == after.get("digest")
-        and mid.get("total_refunded_minor") == before.get("total_refunded_minor", 0) + 4_000
+    # The second call is a replay whichever run this is, and a replay must never
+    # move the ledger.
+    retry_moved_nothing = (
+        second.get("idempotent_replay") is True and mid.get("digest") == after.get("digest")
     )
+    same_refund = bool(first.get("refund_id")) and first.get("refund_id") == second.get("refund_id")
+
+    applied_here = first.get("idempotent_replay") is False
+    if applied_here:
+        # A virgin ledger: this run is the one that moved the money.
+        moved_once = mid.get("total_refunded_minor") == before.get("total_refunded_minor", 0) + 4_000
+        detail = (
+            f"first call applied refund {first.get('refund_id')}; "
+            f"retry replayed={second.get('idempotent_replay')}"
+        )
+    else:
+        # An earlier run already applied this key. Both calls replay and the
+        # ledger does not move at all -- which is the claim, demonstrated over
+        # runs instead of within one.
+        moved_once = before.get("digest") == after.get("digest")
+        detail = (
+            f"refund {first.get('refund_id')} was already applied by an earlier run; "
+            f"both calls replayed and the ledger did not move"
+        )
+
     return ScenarioResult(
         name="allowed-refund",
         claim=CLAIMS['allowed-refund'],
-        passed=bool(applied_once and first.get("delegated_identity_preserved")),
-        detail=(
-            f"first call applied refund {first.get('refund_id')}; "
-            f"retry replayed={second.get('idempotent_replay')}"
+        passed=bool(
+            retry_moved_nothing
+            and same_refund
+            and moved_once
+            and first.get("delegated_identity_preserved")
         ),
+        detail=detail,
         ledger_before=before,
         ledger_after=after,
         evidence={
+            "refund_applied_by_this_run": applied_here,
+            "idempotency_key": key,
             "delegated_identity_preserved": first.get("delegated_identity_preserved"),
             "upstream_audience": first.get("upstream_audience"),
             "total_refunded_minor": f"{before.get('total_refunded_minor')} -> {after.get('total_refunded_minor')}",

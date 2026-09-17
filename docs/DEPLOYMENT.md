@@ -106,7 +106,9 @@ That is not a bug to work around — it is what happens when issuer, resource id
 
 All five containers share one named volume mounted at `/app/.local`: one ledger, one audit log, one signing key. `compose-down` keeps it so a restart resumes where you were; `-Volumes` / `--volumes` drops it, which is the container equivalent of resetting with a fresh key.
 
-Because the volume survives a restart, **running the full scenario set twice without wiping it will fail `allowed-refund` the second time** — the order has already been refunded and the demo is correctly refusing to double-spend. That is the ledger working, not a flake. Wipe state between full runs:
+Because the volume survives a restart, **the refund in `allowed-refund` survives it too**. The scenario uses a fixed idempotency key, so a second run is a *retry* of the same business request rather than a new one: it still passes, reports `refund_applied_by_this_run: False`, and leaves the ledger digest exactly where it was. Nothing is exhausted and nothing needs wiping to keep the suite green.
+
+Wipe state when you want the first-call demonstration back — a ledger that moves `0 → 4000` on stage rather than a replay:
 
 ```powershell
 .\scripts\compose-down.ps1 -Volumes ; .\scripts\compose-up.ps1
@@ -358,7 +360,7 @@ Said plainly, because a talk about authorization should not overclaim.
 
 **Verified by execution:**
 
-- Modes 1 and 2, in PowerShell and bash: 217 tests, 14 scenarios, `READY` from `check`.
+- Modes 1 and 2, in PowerShell and bash: 221 tests, 14 scenarios, `READY` from `check`.
 - The web API end to end against live services: health, scenario listing, a real run, ledger digest, audit tail, and `403` on reset.
 - **Mode 3 end to end.** The image builds, all five containers report healthy, and **all 14 scenarios pass inside Compose** with the ledger moving only on the scenario that is supposed to move it.
 - **Mode 4 end to end, twice.** A real AKS cluster was created, the image was built by ACR Tasks, the pod rolled out with 5/5 containers ready and zero restarts, and **all 14 scenarios passed against the public IP**. The second run proved the security hardening below.
