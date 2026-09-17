@@ -173,9 +173,11 @@ Create a `slides/` directory at the repository root containing:
 | `slides/who-can-call-this-mcp-tool.pptx` | The deck. This is the deliverable. |
 | `slides/SLIDE-NOTES.md` | The full outline in markdown — every slide's title, body text, and speaker notes. A `.pptx` does not diff in git; this is how the deck gets reviewed, corrected, and regenerated. |
 | `slides/build_deck.py` | The generator script, so the deck is reproducible rather than hand-assembled. Re-running it must produce the same deck. |
-| `slides/.venv/` | A **separate** virtual environment for `python-pptx`. Add it to `.gitignore`. Do not install deck tooling into `demo/.venv`. |
+| `slides/.venv/` | A **separate** virtual environment for `python-pptx`. **Already created, and already covered by `.gitignore`.** Do not install deck tooling into `demo/.venv`. |
 
-**Start by invoking the `pptx` skill** if it is available in your environment — it knows how to build well-formed decks and will save you from reinventing the layout handling. `python-pptx` is not currently installed anywhere in this repository, so create `slides/.venv` and install it there.
+**Start by invoking the `pptx` skill** if it is available in your environment — it knows how to build well-formed decks and will save you from reinventing the layout handling. **Use it for layout mechanics only.** Its design guidance conflicts with this prompt: it favours bold palettes, dark backgrounds, a visual element on every slide, decorative icons, and pptxgenjs. Where the two disagree, **this prompt wins** — light background, dark text, red reserved for *outside your trust boundary*, a 24 pt floor, and a Python generator script.
+
+**The environment is already prepared. Do not rebuild it and do not install anything.** `slides/.venv` exists with `python-pptx`, `Pillow`, `qrcode`, `segno`, and `pywin32` installed; the run needs no network. Invoke it as `slides\.venv\Scripts\python.exe`. Note that bare `python` on this machine resolves to a non-functional Microsoft Store stub — never call `python` directly.
 
 **The repository has no git remote.** Use `https://github.com/<owner>/<repo>` as a visible placeholder on the resources slide, generate the QR code from it, and **flag it clearly in your final report** so the presenter replaces it before the event. Do not invent a plausible-looking URL — a QR code that goes nowhere is worse than an obvious blank.
 
@@ -198,7 +200,7 @@ Do not report success on the basis that the file was written. Reopen it and chec
 - [ ] Every reason code and rule ID on a slide also appears in `demo/src/refund_demo/policy.py` or `tokens.py`; the policy version string is in `config.py`
 - [ ] Slide dimensions are 13.333 in × 7.5 in
 
-**Visual check.** PowerPoint COM is registered on this machine, so export at minimum **slide 4 (trust boundary)** and **slide 5 (five layers)** to PNG and *look at them*. These two carry the most content and are where overlapping shapes and clipped labels actually happen. If a renderer is unavailable, say so plainly in your report rather than implying you inspected something you did not.
+**Visual check.** PowerPoint COM is registered on this machine and is verified working — it is the **only** renderer available, as LibreOffice is not installed. Do not go looking for `soffice`. Export at minimum **slide 4 (trust boundary)** and **slide 5 (five layers)** to PNG and *look at them*. These two carry the most content and are where overlapping shapes and clipped labels actually happen. If a renderer is unavailable, say so plainly in your report rather than implying you inspected something you did not.
 
 **Final report** — keep it short, and include:
 
