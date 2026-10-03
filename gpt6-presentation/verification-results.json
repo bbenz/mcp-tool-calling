@@ -1,0 +1,133 @@
+{
+  "structural_checks": "PASS",
+  "slides": [
+    {
+      "slide": 1,
+      "title": "Who Can Call This MCP Tool? OAuth, Resource Binding, and Runtime Policy",
+      "hidden": false,
+      "projected_words_including_labels": 39
+    },
+    {
+      "slide": 2,
+      "title": "Three different questions",
+      "hidden": false,
+      "projected_words_including_labels": 33
+    },
+    {
+      "slide": 3,
+      "title": "Follow the trust boundary",
+      "hidden": false,
+      "projected_words_including_labels": 43
+    },
+    {
+      "slide": 4,
+      "title": "Who enforces what?",
+      "hidden": false,
+      "projected_words_including_labels": 53
+    },
+    {
+      "slide": 5,
+      "title": "Three rules to take home",
+      "hidden": false,
+      "projected_words_including_labels": 43
+    },
+    {
+      "slide": 6,
+      "title": "Control map, resources, Q&A",
+      "hidden": false,
+      "projected_words_including_labels": 37
+    },
+    {
+      "slide": 7,
+      "title": "The authorization trace",
+      "hidden": true,
+      "projected_words_including_labels": 55
+    },
+    {
+      "slide": 8,
+      "title": "Policy at tools/call",
+      "hidden": true,
+      "projected_words_including_labels": 41
+    },
+    {
+      "slide": 9,
+      "title": "One refund. One ledger change.",
+      "hidden": true,
+      "projected_words_including_labels": 46
+    },
+    {
+      "slide": 10,
+      "title": "Hints and approval are not permission",
+      "hidden": true,
+      "projected_words_including_labels": 43
+    },
+    {
+      "slide": 11,
+      "title": "A genuine token can be wrong for you",
+      "hidden": true,
+      "projected_words_including_labels": 43
+    },
+    {
+      "slide": 12,
+      "title": "Do not become the confused deputy",
+      "hidden": true,
+      "projected_words_including_labels": 37
+    },
+    {
+      "slide": 13,
+      "title": "Force the call. Keep the boundary.",
+      "hidden": true,
+      "projected_words_including_labels": 49
+    },
+    {
+      "slide": 14,
+      "title": "Three assessment outcomes. One policy.",
+      "hidden": true,
+      "projected_words_including_labels": 40
+    },
+    {
+      "slide": 15,
+      "title": "Audit is evidence, not enforcement",
+      "hidden": true,
+      "projected_words_including_labels": 50
+    },
+    {
+      "slide": 16,
+      "title": "Run it four ways. Keep one policy.",
+      "hidden": true,
+      "projected_words_including_labels": 63
+    },
+    {
+      "slide": 17,
+      "title": "The rest of the seven-rule checklist",
+      "hidden": true,
+      "projected_words_including_labels": 55
+    },
+    {
+      "slide": 18,
+      "title": "What was recorded. What remains open.",
+      "hidden": true,
+      "projected_words_including_labels": 54
+    },
+    {
+      "slide": 19,
+      "title": "References for the next implementation",
+      "hidden": true,
+      "projected_words_including_labels": 55
+    }
+  ],
+  "fonts": [
+    "Calibri"
+  ],
+  "timing_seconds": 1500,
+  "visible": 6,
+  "hidden": 13,
+  "hyperlinks": [
+    "https://github.com/bbenz/mcp-tool-calling"
+  ],
+  "qr_matches_public_target": true,
+  "render_checks": "PASS",
+  "powerpoint_version": "16.0",
+  "pdf_pages_including_backups": 19,
+  "layout_issues": []
+}
