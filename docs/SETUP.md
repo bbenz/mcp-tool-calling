@@ -287,6 +287,7 @@ See `demo/infra/README.md` for parameters, outputs, cost considerations, and tea
 | `no virtualenv found` from a `.sh` script | The venv has not been created, or was created for the other platform | Run `./scripts/bootstrap.sh` in the *same* shell family you intend to use (see §2) |
 | `python` prints nothing, exits 0 | Microsoft Store alias stub | Use `.venv\Scripts\python.exe`, or disable the alias (§1) |
 | Port already in use on start | Previous run not stopped | `.\scripts\stop-all.ps1`, then start again |
+| `web.sh` / `web.ps1` starts, but `localhost:8080` shows **a different application** | Something else already owns 8080 — commonly another demo's container. The page you see is theirs, so every `/api/...` call 404s and the demo looks broken | Confirm with `Get-NetTCPConnection -LocalPort 8080 -State Listen` and `docker ps`. Do not kill someone else's service: run on another port instead, `./scripts/web.sh --port 9000` |
 | Scenario hangs ~30 s then times out | A service died — check `.local/logs/<service>.log` | `stop-all` then `start-all` |
 | Every call suddenly fails `invalid_token` after a reset | The signing key was rotated underneath running services | Should no longer be reachable — reset keeps the key and refuses `-NewKey` while `devidp` listens. If you see it, `stop-all` then `start-all -Reset` |
 | `IDEMPOTENCY_KEY_REUSED` | Correct behaviour: a key was replayed with different parameters | `.\scripts\reset.ps1` |

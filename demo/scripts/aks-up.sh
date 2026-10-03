@@ -17,7 +17,7 @@
 #                       [--cluster-name NAME] [--registry-name NAME]
 #                       [--node-count N] [--node-size SIZE]
 #                       [--foundry-endpoint URL] [--foundry-deployment NAME]
-#                       [--foundry-api-key KEY]
+#                       [--foundry-api-version VERSION] [--foundry-api-key KEY]
 #                       [--no-access-key] [--yes]
 set -euo pipefail
 
@@ -39,6 +39,7 @@ ACCESS_KEY_ENABLED=1
 ASSUME_YES=0
 FOUNDRY_ENDPOINT=""
 FOUNDRY_DEPLOYMENT=""
+FOUNDRY_API_VERSION=""
 FOUNDRY_API_KEY=""
 
 while [ $# -gt 0 ]; do
@@ -52,6 +53,7 @@ while [ $# -gt 0 ]; do
     --no-access-key)  ACCESS_KEY_ENABLED=0; shift ;;
     --foundry-endpoint)   FOUNDRY_ENDPOINT="$2"; shift 2 ;;
     --foundry-deployment) FOUNDRY_DEPLOYMENT="$2"; shift 2 ;;
+    --foundry-api-version) FOUNDRY_API_VERSION="$2"; shift 2 ;;
     --foundry-api-key)    FOUNDRY_API_KEY="$2"; shift 2 ;;
     --yes|-y)         ASSUME_YES=1; shift ;;
     -h|--help)        sed -n '2,22p' "$0"; exit 0 ;;
@@ -175,6 +177,9 @@ if [ -n "$FOUNDRY_ENDPOINT" ] && [ -n "$FOUNDRY_DEPLOYMENT" ]; then
     --from-literal=FOUNDRY_ENDPOINT="$FOUNDRY_ENDPOINT"
     --from-literal=FOUNDRY_DEPLOYMENT="$FOUNDRY_DEPLOYMENT"
   )
+  if [ -n "$FOUNDRY_API_VERSION" ]; then
+    secret_args+=(--from-literal=FOUNDRY_API_VERSION="$FOUNDRY_API_VERSION")
+  fi
   if [ -n "$FOUNDRY_API_KEY" ]; then
     secret_args+=(--from-literal=FOUNDRY_API_KEY="$FOUNDRY_API_KEY")
     how="api key"

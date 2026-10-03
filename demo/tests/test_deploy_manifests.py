@@ -457,13 +457,28 @@ def test_both_deploy_scripts_expose_the_same_foundry_flags(script):
     path = os.path.join(DEMO, "scripts", script)
     with open(path, encoding="utf-8") as fh:
         text = fh.read()
-    for flag in ("FoundryEndpoint", "FoundryDeployment", "FoundryApiKey") if script.endswith(
+    for flag in (
+        "FoundryEndpoint",
+        "FoundryDeployment",
+        "FoundryApiVersion",
+        "FoundryApiKey",
+    ) if script.endswith(
         ".ps1"
-    ) else ("--foundry-endpoint", "--foundry-deployment", "--foundry-api-key"):
+    ) else (
+        "--foundry-endpoint",
+        "--foundry-deployment",
+        "--foundry-api-version",
+        "--foundry-api-key",
+    ):
         assert flag in text, f"{script} is missing {flag}"
     assert "refund-demo-foundry" in text
     # The values must reach the cluster as a Secret, never by patching the
     # ConfigMap -- which is the shortcut that put the endpoint in plaintext.
     assert "set env configmap" not in text, f"{script} still writes Foundry config to the ConfigMap"
-    for key in ("FOUNDRY_ENDPOINT", "FOUNDRY_DEPLOYMENT", "FOUNDRY_API_KEY"):
+    for key in (
+        "FOUNDRY_ENDPOINT",
+        "FOUNDRY_DEPLOYMENT",
+        "FOUNDRY_API_VERSION",
+        "FOUNDRY_API_KEY",
+    ):
         assert f"--from-literal={key}=" in text, f"{script} does not put {key} in the Secret"

@@ -27,6 +27,14 @@
   Node count. One is enough: the whole demo is a single pod.
 .PARAMETER NodeSize
   VM size for the node pool.
+.PARAMETER FoundryEndpoint
+  Microsoft Foundry endpoint for the advisory tool. Requires -FoundryDeployment.
+.PARAMETER FoundryDeployment
+  Foundry deployment name. Requires -FoundryEndpoint.
+.PARAMETER FoundryApiVersion
+  Azure OpenAI API version. Defaults to the value baked into the ConfigMap.
+.PARAMETER FoundryApiKey
+  Foundry API key. Omit to use workload identity instead.
 .PARAMETER NoAccessKey
   Leave the web UI ungated. Only sensible for a cluster nobody else can reach.
 .PARAMETER Yes
@@ -46,6 +54,7 @@ param(
     [string]$NodeSize      = 'Standard_D2s_v3',
     [string]$FoundryEndpoint   = '',
     [string]$FoundryDeployment = '',
+    [string]$FoundryApiVersion = '',
     [string]$FoundryApiKey     = '',
     [switch]$NoAccessKey,
     [switch]$Yes
@@ -200,6 +209,7 @@ if ($FoundryEndpoint -and $FoundryDeployment) {
         "--from-literal=FOUNDRY_ENDPOINT=$FoundryEndpoint",
         "--from-literal=FOUNDRY_DEPLOYMENT=$FoundryDeployment"
     )
+    if ($FoundryApiVersion) { $secretArgs += "--from-literal=FOUNDRY_API_VERSION=$FoundryApiVersion" }
     if ($FoundryApiKey) { $secretArgs += "--from-literal=FOUNDRY_API_KEY=$FoundryApiKey" }
 
     kubectl -n refund-demo create secret generic refund-demo-foundry @secretArgs `

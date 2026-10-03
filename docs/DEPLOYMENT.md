@@ -139,6 +139,7 @@ The ledger is SQLite. **Nothing here scales past one writer**, which is why the 
 | --- | --- | --- |
 | Deploy | `.\scripts\aks-up.ps1` | `./scripts/aks-up.sh` |
 | Pick a region | `.\scripts\aks-up.ps1 -Location westeurope` | `./scripts/aks-up.sh --location westeurope` |
+| Pick a node size | `.\scripts\aks-up.ps1 -NodeSize Standard_D2as_v5` | `./scripts/aks-up.sh --node-size Standard_D2as_v5` |
 | Skip the prompt | `.\scripts\aks-up.ps1 -Yes` | `./scripts/aks-up.sh --yes` |
 | **Tear down** | `.\scripts\aks-down.ps1` | `./scripts/aks-down.sh` |
 
@@ -156,6 +157,22 @@ az acr task logs --registry <registry> --run-id <id>
 ```
 
 `PYTHONIOENCODING=utf-8` does **not** fix it; colorama wraps the console handle regardless.
+
+### If the cluster will not create: "VM size … is not allowed in your subscription"
+
+Step 4 can fail with `(BadRequest) The VM size of Standard_D2s_v3 is not allowed in your subscription in location '<region>'`, followed by a very long list of sizes that *are* allowed. This is an Azure Policy or SKU restriction on the subscription, not a quota problem and not a fault in the script — the resource group, registry and image from steps 1–3 were all created successfully, so you only need to re-run with a permitted size.
+
+Pick a 2-vCPU size from the list the error printed and pass it:
+
+```powershell
+.\scripts\aks-up.ps1 -ResourceGroup <resource-group> -NodeSize Standard_D2as_v5
+```
+
+`Standard_D2as_v5` and `Standard_D2s_v4` are the usual stand-ins for the `Standard_D2s_v3` default. The demo is a single pod of five small containers, so anything with 2 vCPU and 8 GB is ample. To see what a subscription permits before deploying:
+
+```powershell
+az vm list-skus --location <region> --size Standard_D2 --query "[?!restrictions[0]].name" -o tsv
+```
 
 ### What it costs
 
@@ -256,6 +273,8 @@ Pass `--no-access-key` / `-NoAccessKey` to leave the UI ungated. Only do that fo
 ```
 
 Both settings go into the `refund-demo-foundry` **Secret**, not the ConfigMap — including the endpoint and deployment name, which are not secrets in the cryptographic sense but do name a resource in someone's subscription. The ConfigMap is read by all five containers; this Secret is mounted by `mcp-a` alone, because `assess_refund` is the only caller. One object, one lifecycle, one blast radius. Leave the flags off and the tool returns a labelled offline assessment, so the demo still runs with no model and no network.
+
+`-FoundryApiVersion` / `--foundry-api-version` is optional and goes into the same Secret. Omit it and the cluster uses the `FOUNDRY_API_VERSION` baked into the ConfigMap. Pass it when a deployment needs a newer API version than that default, so the cluster matches the `FOUNDRY_API_VERSION` in your local `demo/.env` instead of silently diverging from it.
 
 Credentials, in order of preference:
 
